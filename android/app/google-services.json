@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "781333412210",
+    "project_id": "proclub-cdd37",
+    "storage_bucket": "proclub-cdd37.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:781333412210:android:3dffa8445a275dd84b45eb",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJ8JuWE3CAfhUJYBgKbkK5cweato11WDY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
