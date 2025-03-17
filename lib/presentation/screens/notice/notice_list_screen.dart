@@ -9,7 +9,6 @@ import 'package:flutter_application_1/presentation/providers/user_provider.dart'
 import 'package:flutter_application_1/presentation/screens/notice/notice_form_screen.dart';
 import 'package:flutter_application_1/presentation/screens/notice/notice_detail_screen.dart';
 import 'package:flutter_application_1/presentation/widgets/notice_card.dart';
-import 'package:intl/intl.dart';
 
 class NoticeListScreen extends StatefulWidget {
   const NoticeListScreen({Key? key}) : super(key: key);
@@ -98,7 +97,6 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
-    final isAdmin = userProvider.isAdmin;
     
     return Scaffold(
       appBar: AppBar(

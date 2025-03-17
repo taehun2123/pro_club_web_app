@@ -12,6 +12,10 @@ class Post {
   final int viewCount;
   final int commentCount;
   final List<String>? attachments;
+  final String tag; // 태그 필드 추가
+  final String? customTag; // 커스텀 태그 필드 추가
+  final List<String> likedBy; // 좋아요한 사용자 ID 목록
+  final List<String> dislikedBy; // 싫어요한 사용자 ID 목록
 
   Post({
     required this.id,
@@ -25,7 +29,18 @@ class Post {
     this.viewCount = 0,
     this.commentCount = 0,
     this.attachments,
+    this.tag = '자유', // 기본 태그는 '자유'
+    this.customTag,
+    this.likedBy = const [],
+    this.dislikedBy = const [],
   });
+
+  // 좋아요 및 싫어요 수 계산
+  int get likeCount => likedBy.length;
+  int get dislikeCount => dislikedBy.length;
+
+  // 태그 표시 텍스트
+  String get displayTag => tag == '기타' && customTag != null ? customTag! : tag;
 
   factory Post.fromMap(Map<String, dynamic> map, String docId) {
     return Post(
@@ -42,6 +57,10 @@ class Post {
       attachments: map['attachments'] != null
           ? List<String>.from(map['attachments'])
           : null,
+      tag: map['tag'] ?? '자유',
+      customTag: map['customTag'],
+      likedBy: map['likedBy'] != null ? List<String>.from(map['likedBy']) : [],
+      dislikedBy: map['dislikedBy'] != null ? List<String>.from(map['dislikedBy']) : [],
     );
   }
 
@@ -57,6 +76,10 @@ class Post {
       'viewCount': viewCount,
       'commentCount': commentCount,
       'attachments': attachments,
+      'tag': tag,
+      'customTag': customTag,
+      'likedBy': likedBy,
+      'dislikedBy': dislikedBy,
     };
   }
 
@@ -73,6 +96,10 @@ class Post {
     int? viewCount,
     int? commentCount,
     List<String>? attachments,
+    String? tag,
+    String? customTag,
+    List<String>? likedBy,
+    List<String>? dislikedBy,
   }) {
     return Post(
       id: id ?? this.id,
@@ -86,6 +113,10 @@ class Post {
       viewCount: viewCount ?? this.viewCount,
       commentCount: commentCount ?? this.commentCount,
       attachments: attachments ?? this.attachments,
+      tag: tag ?? this.tag,
+      customTag: customTag ?? this.customTag,
+      likedBy: likedBy ?? this.likedBy,
+      dislikedBy: dislikedBy ?? this.dislikedBy,
     );
   }
 
@@ -93,5 +124,15 @@ class Post {
   String get dateString {
     final date = createdAt.toDate();
     return '${date.year}년 ${date.month}월 ${date.day}일';
+  }
+
+  // 사용자가 해당 게시글에 좋아요했는지 확인
+  bool isLikedBy(String userId) {
+    return likedBy.contains(userId);
+  }
+
+  // 사용자가 해당 게시글에 싫어요했는지 확인
+  bool isDislikedBy(String userId) {
+    return dislikedBy.contains(userId);
   }
 }

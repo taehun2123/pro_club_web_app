@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_1/core/theme/app_colors.dart';
-import 'package:flutter_application_1/data/models/app_user.dart';
 import 'package:flutter_application_1/data/services/auth_service.dart';
 import 'package:flutter_application_1/data/services/post_service.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
@@ -15,7 +14,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -27,7 +25,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   final AuthService _authService = AuthService();
-  final PostService _postService = PostService();
+  // final PostService _postService = PostService();
   final ImagePicker _imagePicker = ImagePicker();
 
   late TabController _tabController;

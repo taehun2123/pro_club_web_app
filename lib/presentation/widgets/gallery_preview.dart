@@ -18,10 +18,10 @@ class GalleryPreview extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.8,
+        crossAxisCount: 4,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.85,
       ),
       itemCount: galleries.length > 4 ? 4 : galleries.length,
       itemBuilder: (context, index) {
@@ -96,24 +96,24 @@ class GalleryPreviewItem extends StatelessWidget {
             
             // 갤러리 정보
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     gallery.title,
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     gallery.dateString,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 10,
                       color: Colors.grey[600],
                     ),
                   ),

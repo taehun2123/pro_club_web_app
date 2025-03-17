@@ -8,7 +8,6 @@ import 'dart:typed_data'; // Uint8List 사용을 위해
 class GalleryService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
-  final String _bucketName = 'proclub-cdd37'; // 버킷 이름 상수화
 
   // 컬렉션 참조
   CollectionReference get _galleriesRef => _firestore.collection('galleries');

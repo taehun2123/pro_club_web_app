@@ -1,7 +1,6 @@
 // lib/presentation/screens/auth/login_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_application_1/core/theme/app_colors.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/screens/auth/user_info_screen.dart';
@@ -27,8 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // 구글 로그인 실행
-      final result = await _authService.signInWithGoogle();
-
+      await _authService.signInWithGoogle();
       if (!mounted) return;
 
       // 사용자 정보 확인
@@ -87,23 +85,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   // 로고
                   Center(
-                    child: Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'P',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 50,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
+                    child: Image.asset(
+                      'assets/images/robot.png',
+                      width: 200,
+                      height: 200,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -128,19 +113,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 80),
-
-                  // 앱 설명
-                  Center(
-                    child: Text(
-                      'PRO 동아리 앱에 오신 것을 환영합니다',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.grey[800],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   Center(
                     child: Text(
                       '구글 계정으로 로그인하여 시작하세요',

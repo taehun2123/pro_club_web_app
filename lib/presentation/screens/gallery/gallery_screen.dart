@@ -8,7 +8,6 @@ import 'package:flutter_application_1/data/services/gallery_service.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/screens/gallery/gallery_form_screen.dart';
 import 'package:flutter_application_1/presentation/screens/gallery/gallery_detail_screen.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 
 class GalleryScreen extends StatefulWidget {
@@ -35,36 +34,35 @@ class _GalleryScreenState extends State<GalleryScreen> {
   String _cleanUrl(String url) {
     try {
       if (url.isEmpty) return url;
-      
+
       // 이미 %2F로 인코딩 되어있으면 그대로 사용
       if (url.contains('%2F') && url.contains('?alt=media')) {
         return url;
       }
-      
+
       // /galleries/ 형식의 URL 처리
       if (url.contains('/galleries/')) {
         // 경로 추출
         final parts = url.split('/galleries/');
         if (parts.length > 1) {
-          final basePath = parts[0];
           String objectPath = 'galleries/' + parts[1];
-          
+
           // 쿼리 파라미터 제거
           if (objectPath.contains('?')) {
             objectPath = objectPath.split('?')[0];
           }
-          
+
           // 슬래시를 %2F로 변환
           objectPath = objectPath.replaceAll('/', '%2F');
-          
+
           // 버킷 이름
           const bucketName = 'proclub-cdd37.firebasestorage.app';
-          
+
           // 새 URL 생성
           return 'https://firebasestorage.googleapis.com/v0/b/$bucketName/o/$objectPath?alt=media';
         }
       }
-      
+
       return url;
     } catch (e) {
       print('URL 정리 중 오류 발생: $e');
@@ -74,7 +72,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   Future<void> _loadGalleries() async {
     if (!mounted) return;
-    
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -82,7 +80,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
     try {
       final galleries = await _galleryService.getAllGalleries();
-      
+
       if (mounted) {
         setState(() {
           _galleries = galleries;
@@ -91,16 +89,16 @@ class _GalleryScreenState extends State<GalleryScreen> {
       }
     } catch (e) {
       print('갤러리 로드 오류: $e');
-      
+
       if (mounted) {
         setState(() {
           _errorMessage = '갤러리를 불러오는 중 오류가 발생했습니다';
           _isLoading = false;
         });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('갤러리 로드 중 오류가 발생했습니다: $e'))
-        );
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('갤러리 로드 중 오류가 발생했습니다: $e')));
       }
     }
   }
@@ -121,26 +119,24 @@ class _GalleryScreenState extends State<GalleryScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadGalleries,
-        child: _buildContent(),
-      ),
-      floatingActionButton: isLoggedIn
-          ? FloatingActionButton(
-              backgroundColor: AppColors.primary,
-              child: const Icon(Icons.add_photo_alternate),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const GalleryFormScreen(),
-                  ),
-                ).then((_) {
-                  _loadGalleries();
-                });
-              },
-            )
-          : null,
+      body: RefreshIndicator(onRefresh: _loadGalleries, child: _buildContent()),
+      floatingActionButton:
+          isLoggedIn
+              ? FloatingActionButton(
+                backgroundColor: AppColors.primary,
+                child: const Icon(Icons.add_photo_alternate),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const GalleryFormScreen(),
+                    ),
+                  ).then((_) {
+                    _loadGalleries();
+                  });
+                },
+              )
+              : null,
     );
   }
 
@@ -154,11 +150,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Colors.grey,
-            ),
+            const Icon(Icons.error_outline, size: 48, color: Colors.grey),
             const SizedBox(height: 16),
             Text(
               _errorMessage!,
@@ -185,12 +177,12 @@ class _GalleryScreenState extends State<GalleryScreen> {
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(8), // 패딩 줄임
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisCount: 5, // 한 행에 5개 아이템 표시
+        childAspectRatio: 0.65, // 세로로 더 길게 조정
+        crossAxisSpacing: 6, // 여백 더 줄임
+        mainAxisSpacing: 6, // 여백 더 줄임
       ),
       itemCount: _galleries!.length,
       itemBuilder: (context, index) {
@@ -202,7 +194,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => GalleryDetailScreen(galleryId: gallery.id),
+                builder:
+                    (context) => GalleryDetailScreen(galleryId: gallery.id),
               ),
             ).then((_) {
               _loadGalleries();
@@ -220,21 +213,23 @@ class _GalleryItem extends StatelessWidget {
   final String Function(String) cleanUrl;
 
   const _GalleryItem({
-    Key? key, 
-    required this.gallery, 
+    Key? key,
+    required this.gallery,
     required this.onTap,
     required this.cleanUrl,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final createdDate = DateFormat('yyyy.MM.dd').format(gallery.createdAt.toDate());
+    final createdDate = DateFormat(
+      'yyyy.MM.dd',
+    ).format(gallery.createdAt.toDate());
     final thumbnailUrl = cleanUrl(gallery.thumbnailUrl);
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)), // 더 작게 줄임
+      elevation: 1, // 그림자 줄임
       child: InkWell(
         onTap: onTap,
         child: Column(
@@ -242,66 +237,70 @@ class _GalleryItem extends StatelessWidget {
           children: [
             // 썸네일 이미지
             Expanded(
-              child: thumbnailUrl.isNotEmpty
-                  ? _buildThumbnailImage(thumbnailUrl)
-                  : _buildEmptyThumbnail(),
+              child:
+                  thumbnailUrl.isNotEmpty
+                      ? _buildThumbnailImage(thumbnailUrl)
+                      : _buildEmptyThumbnail(),
             ),
 
-            // 제목 및 정보
+            // 제목 및 정보 - 간결하게 수정
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(4), // 더 작은 패딩 적용
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     gallery.title,
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 10, // 더 작은 글자 크기
                       fontWeight: FontWeight.bold,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2), // 4에서 2로 줄임
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
                           gallery.authorName,
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          style: TextStyle(
+                            fontSize: 8, // 더 작은 글자 크기로 변경
+                            color: Colors.grey[600],
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Text(
                         createdDate,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        style: TextStyle(fontSize: 8, color: Colors.grey[600]), // 더 작은 글자 크기
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2), // 4에서 2로 줄임
                   Row(
                     children: [
                       Icon(
                         Icons.photo_library,
-                        size: 12,
+                        size: 8, // 더 작은 아이콘 크기
                         color: Colors.grey[600],
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2), // 4에서 2로 줄임
                       Text(
                         '${gallery.images.length}장',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        style: TextStyle(fontSize: 8, color: Colors.grey[600]), // 더 작은 글자 크기
                       ),
                       const Spacer(),
                       Icon(
                         Icons.remove_red_eye_outlined,
-                        size: 12,
+                        size: 8, // 더 작은 아이콘 크기
                         color: Colors.grey[600],
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2), // 간격 줄임
                       Text(
                         gallery.viewCount.toString(),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        style: TextStyle(fontSize: 8, color: Colors.grey[600]), // 더 작은 글자 크기
                       ),
                     ],
                   ),
@@ -313,6 +312,8 @@ class _GalleryItem extends StatelessWidget {
       ),
     );
   }
+
+
 
   Widget _buildThumbnailImage(String url) {
     return Hero(
@@ -328,10 +329,11 @@ class _GalleryItem extends StatelessWidget {
             if (loadingProgress == null) return child;
             return Center(
               child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded / 
-                      (loadingProgress.expectedTotalBytes ?? 1)
-                    : null,
+                value:
+                    loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded /
+                            (loadingProgress.expectedTotalBytes ?? 1)
+                        : null,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   AppColors.primary.withOpacity(0.5),
                 ),
@@ -344,8 +346,8 @@ class _GalleryItem extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error, color: Colors.red[300], size: 24),
-                  SizedBox(height: 4),
+                  Icon(Icons.error, color: Colors.red[300], size: 20),
+                  SizedBox(height: 2),
                   Text(
                     '이미지 오류',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -364,11 +366,7 @@ class _GalleryItem extends StatelessWidget {
       width: double.infinity,
       color: Colors.grey[200],
       child: const Center(
-        child: Icon(
-          Icons.photo_library,
-          color: Colors.grey,
-          size: 32,
-        ),
+        child: Icon(Icons.photo_library, color: Colors.grey, size: 24),
       ),
     );
   }

@@ -10,7 +10,7 @@ class UserProvider extends ChangeNotifier {
   AppUser? get user => _user;
 
   bool get isLoggedIn => _user != null;
-  
+
   bool get isAdmin => _user?.isAdmin ?? false;
 
   void setUser(AppUser user) {
@@ -27,14 +27,13 @@ class UserProvider extends ChangeNotifier {
     _user = updatedUser;
     notifyListeners();
   }
-  
-  // user_provider.dart 파일에 추가
-Future<void> refreshUser(AuthService authService) async {
-  if (_user != null) {
-    final updatedUser = await authService.getCurrentUserData();
-    if (updatedUser != null) {
-      setUser(updatedUser);
+
+  Future<void> refreshUser(AuthService authService) async {
+    if (_user != null) {
+      final updatedUser = await authService.getCurrentUserData();
+      if (updatedUser != null) {
+        setUser(updatedUser);
+      }
     }
   }
-}
 }

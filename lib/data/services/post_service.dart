@@ -65,86 +65,91 @@ class PostService {
     });
   }
   
-Future<List<String>> uploadAttachments(
-  List<File> files,
-  String postId,
-  {List<Uint8List>? webAttachments}
-) async {
-  final List<String> fileUrls = [];
-  
-  try {
-    if (kIsWeb && webAttachments != null) {
-      // 웹 환경
-      for (int i = 0; i < webAttachments.length; i++) {
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-        final storageRef = _storage.ref().child('posts/$postId/$fileName');
-        
-        final uploadTask = storageRef.putData(
-          webAttachments[i],
-          SettableMetadata(contentType: 'image/jpeg'),
-        );
-        
-        final snapshot = await uploadTask.whenComplete(() {});
-        final downloadUrl = await snapshot.ref.getDownloadURL();
-        fileUrls.add(downloadUrl);
-      }
-    } else {
-      // 모바일 환경
-      for (int i = 0; i < files.length; i++) {
-        final file = files[i];
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i.${file.path.split('.').last}';
-        final storageRef = _storage.ref().child('posts/$postId/$fileName');
-        
-        final uploadTask = storageRef.putFile(file);
-        final snapshot = await uploadTask.whenComplete(() {});
-        final downloadUrl = await snapshot.ref.getDownloadURL();
-        
-        fileUrls.add(downloadUrl);
-      }
-    }
-  } catch (e) {
-    print('첨부 파일 업로드 오류: $e');
-  }
-  
-  return fileUrls;
-}  
-  // 게시글 추가
-// 게시글 추가 메서드 수정
-Future<String> addPost(
-  Post post,
-  List<File>? attachments,
-  {List<Uint8List>? webAttachments}
-) async {
-  // 게시글 문서 생성
-  final docRef = await _postsRef.add({
-    'title': post.title,
-    'content': post.content,
-    'authorId': post.authorId,
-    'authorName': post.authorName,
-    'authorProfileImage': post.authorProfileImage,
-    'createdAt': post.createdAt,
-    'viewCount': 0,
-    'commentCount': 0,
-    'attachments': [],
-  });
-  
-  // 첨부 파일 업로드
-  if ((attachments != null && attachments.isNotEmpty) || 
-      (webAttachments != null && webAttachments.isNotEmpty)) {
-    final attachmentUrls = await uploadAttachments(
-      attachments ?? [],
-      docRef.id,
-      webAttachments: webAttachments,
-    );
+  Future<List<String>> uploadAttachments(
+    List<File> files,
+    String postId,
+    {List<Uint8List>? webAttachments}
+  ) async {
+    final List<String> fileUrls = [];
     
-    // 첨부 파일 URL 업데이트
-    await docRef.update({
-      'attachments': attachmentUrls,
-    });
+    try {
+      if (kIsWeb && webAttachments != null) {
+        // 웹 환경
+        for (int i = 0; i < webAttachments.length; i++) {
+          final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+          final storageRef = _storage.ref().child('posts/$postId/$fileName');
+          
+          final uploadTask = storageRef.putData(
+            webAttachments[i],
+            SettableMetadata(contentType: 'image/jpeg'),
+          );
+          
+          final snapshot = await uploadTask.whenComplete(() {});
+          final downloadUrl = await snapshot.ref.getDownloadURL();
+          fileUrls.add(downloadUrl);
+        }
+      } else {
+        // 모바일 환경
+        for (int i = 0; i < files.length; i++) {
+          final file = files[i];
+          final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i.${file.path.split('.').last}';
+          final storageRef = _storage.ref().child('posts/$postId/$fileName');
+          
+          final uploadTask = storageRef.putFile(file);
+          final snapshot = await uploadTask.whenComplete(() {});
+          final downloadUrl = await snapshot.ref.getDownloadURL();
+          
+          fileUrls.add(downloadUrl);
+        }
+      }
+    } catch (e) {
+      print('첨부 파일 업로드 오류: $e');
+    }
+    
+    return fileUrls;
   }
   
-  return docRef.id;
-}  
+  // 게시글 추가 메서드 수정
+  Future<String> addPost(
+    Post post,
+    List<File>? attachments,
+    {List<Uint8List>? webAttachments}
+  ) async {
+    // 게시글 문서 생성
+    final docRef = await _postsRef.add({
+      'title': post.title,
+      'content': post.content,
+      'authorId': post.authorId,
+      'authorName': post.authorName,
+      'authorProfileImage': post.authorProfileImage,
+      'createdAt': post.createdAt,
+      'viewCount': 0,
+      'commentCount': 0,
+      'attachments': [],
+      'tag': post.tag,
+      'customTag': post.customTag,
+      'likedBy': [],
+      'dislikedBy': [],
+    });
+    
+    // 첨부 파일 업로드
+    if ((attachments != null && attachments.isNotEmpty) || 
+        (webAttachments != null && webAttachments.isNotEmpty)) {
+      final attachmentUrls = await uploadAttachments(
+        attachments ?? [],
+        docRef.id,
+        webAttachments: webAttachments,
+      );
+      
+      // 첨부 파일 URL 업데이트
+      await docRef.update({
+        'attachments': attachmentUrls,
+      });
+    }
+    
+    return docRef.id;
+  }
+  
   // 게시글 수정
   Future<void> updatePost(
     Post post, 
@@ -180,6 +185,8 @@ Future<String> addPost(
       'content': post.content,
       'updatedAt': Timestamp.now(),
       'attachments': updatedAttachments,
+      'tag': post.tag,
+      'customTag': post.customTag,
     });
   }
   
@@ -294,5 +301,107 @@ Future<String> addPost(
     posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     
     return posts;
+  }
+  
+  // 태그별 게시글 가져오기
+  Future<List<Post>> getPostsByTag(String tag) async {
+    Query query;
+    
+    if (tag == '전체') {
+      // 모든 게시글
+      query = _postsRef.orderBy('createdAt', descending: true);
+    } else {
+      // 특정 태그 게시글
+      query = _postsRef
+          .where('tag', isEqualTo: tag)
+          .orderBy('createdAt', descending: true);
+    }
+    
+    final querySnapshot = await query.get();
+    return querySnapshot.docs
+        .map((doc) => Post.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+        .toList();
+  }
+  
+  // 게시글 좋아요 토글
+  Future<void> toggleLike(String postId, String userId) async {
+    final postRef = _postsRef.doc(postId);
+    
+    return _firestore.runTransaction((transaction) async {
+      // 현재 게시글 정보 가져오기
+      final docSnapshot = await transaction.get(postRef);
+      final post = Post.fromMap(docSnapshot.data() as Map<String, dynamic>, docSnapshot.id);
+      
+      // 좋아요 및 싫어요 목록 복사
+      List<String> updatedLikedBy = List<String>.from(post.likedBy);
+      List<String> updatedDislikedBy = List<String>.from(post.dislikedBy);
+      
+      // 이미 좋아요를 눌렀다면 취소, 아니면 추가
+      if (updatedLikedBy.contains(userId)) {
+        updatedLikedBy.remove(userId);
+      } else {
+        updatedLikedBy.add(userId);
+        
+        // 싫어요를 이미 눌렀다면 싫어요 취소 (한 게시글에 좋아요와 싫어요 동시에 불가)
+        if (updatedDislikedBy.contains(userId)) {
+          updatedDislikedBy.remove(userId);
+        }
+      }
+      
+      // Firestore 업데이트
+      transaction.update(postRef, {
+        'likedBy': updatedLikedBy,
+        'dislikedBy': updatedDislikedBy,
+      });
+    });
+  }
+  
+  // 게시글 싫어요 토글
+  Future<void> toggleDislike(String postId, String userId) async {
+    final postRef = _postsRef.doc(postId);
+    
+    return _firestore.runTransaction((transaction) async {
+      // 현재 게시글 정보 가져오기
+      final docSnapshot = await transaction.get(postRef);
+      final post = Post.fromMap(docSnapshot.data() as Map<String, dynamic>, docSnapshot.id);
+      
+      // 좋아요 및 싫어요 목록 복사
+      List<String> updatedLikedBy = List<String>.from(post.likedBy);
+      List<String> updatedDislikedBy = List<String>.from(post.dislikedBy);
+      
+      // 이미 싫어요를 눌렀다면 취소, 아니면 추가
+      if (updatedDislikedBy.contains(userId)) {
+        updatedDislikedBy.remove(userId);
+      } else {
+        updatedDislikedBy.add(userId);
+        
+        // 좋아요를 이미 눌렀다면 좋아요 취소 (한 게시글에 좋아요와 싫어요 동시에 불가)
+        if (updatedLikedBy.contains(userId)) {
+          updatedLikedBy.remove(userId);
+        }
+      }
+      
+      // Firestore 업데이트
+      transaction.update(postRef, {
+        'likedBy': updatedDislikedBy,
+        'dislikedBy': updatedLikedBy,
+      });
+    });
+  }
+  
+  // 핫 게시글 가져오기 (좋아요 많은 순)
+  Future<List<Post>> getHotPosts({int limit = 10}) async {
+    final querySnapshot = await _postsRef.get();
+    
+    // 모든 게시글 가져오기
+    final posts = querySnapshot.docs
+        .map((doc) => Post.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+        .toList();
+    
+    // 좋아요 수 기준으로 정렬
+    posts.sort((a, b) => b.likeCount.compareTo(a.likeCount));
+    
+    // 상위 N개 반환
+    return posts.take(limit).toList();
   }
 }

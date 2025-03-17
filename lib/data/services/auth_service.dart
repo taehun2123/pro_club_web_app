@@ -1,8 +1,6 @@
 // lib/data/services/auth_service.dart
 
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -56,23 +54,6 @@ Future<UserCredential> signInWithGoogle() async {
   }
 
   // Firestore에 사용자 정보 생성
-  Future<void> _createUserInFirestore(
-    String uid, 
-    String email, 
-    String name, 
-    String? profileImage,
-  ) async {
-    final appUser = AppUser(
-      id: uid,
-      email: email,
-      name: name,
-      profileImage: profileImage,
-      role: 'member', // 기본 역할은 일반 회원
-      createdAt: Timestamp.now(),
-    );
-
-    await _firestore.collection('users').doc(uid).set(appUser.toMap());
-  }
 
 // 초기 사용자 레코드 생성
 Future<void> createInitialUserRecord(User firebaseUser) async {

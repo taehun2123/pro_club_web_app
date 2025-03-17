@@ -33,6 +33,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   List<Comment> _comments = [];
   bool _isLoading = true;
   bool _isCommentLoading = false;
+  bool _isLikeLoading = false; // 좋아요 처리 중인지 상태 추가
 
   @override
   void initState() {
@@ -69,6 +70,112 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           SnackBar(content: Text('게시글 로드 중 오류가 발생했습니다: $e')),
         );
       }
+    }
+  }
+
+  // 좋아요 토글 기능 추가
+  Future<void> _toggleLike() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final user = userProvider.user;
+    
+    if (user == null || _post == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('좋아요를 하려면 로그인이 필요합니다')),
+      );
+      return;
+    }
+
+    // 이미 처리 중인 경우 중복 요청 방지
+    if (_isLikeLoading) return;
+
+    setState(() {
+      _isLikeLoading = true;
+    });
+
+    try {
+      await _postService.toggleLike(_post!.id, user.id);
+      // 게시글 다시 로드하여 좋아요 상태 갱신
+      final updatedPost = await _postService.getPostById(_post!.id);
+      
+      if (mounted && updatedPost != null) {
+        setState(() {
+          _post = updatedPost;
+          _isLikeLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('좋아요 처리 중 오류가 발생했습니다: $e')),
+        );
+        setState(() {
+          _isLikeLoading = false;
+        });
+      }
+    }
+  }
+
+  // 싫어요 토글 기능 추가
+  Future<void> _toggleDislike() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final user = userProvider.user;
+    
+    if (user == null || _post == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('싫어요를 하려면 로그인이 필요합니다')),
+      );
+      return;
+    }
+
+    // 이미 처리 중인 경우 중복 요청 방지
+    if (_isLikeLoading) return;
+
+    setState(() {
+      _isLikeLoading = true;
+    });
+
+    try {
+      await _postService.toggleDislike(_post!.id, user.id);
+      // 게시글 다시 로드하여 싫어요 상태 갱신
+      final updatedPost = await _postService.getPostById(_post!.id);
+      
+      if (mounted && updatedPost != null) {
+        setState(() {
+          _post = updatedPost;
+          _isLikeLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('싫어요 처리 중 오류가 발생했습니다: $e')),
+        );
+        setState(() {
+          _isLikeLoading = false;
+        });
+      }
+    }
+  }
+
+  // 태그 색상 가져오기
+  Color _getTagColor(String tag) {
+    switch (tag) {
+      case '스터디':
+        return Colors.blue;
+      case '프로젝트':
+        return Colors.green;
+      case '자유':
+        return Colors.purple;
+      case '질의응답':
+        return Colors.orange;
+      case '활동':
+        return Colors.pink;
+      case '자격증':
+        return Colors.teal;
+      case '기타':
+        return Colors.grey;
+      default:
+        return Colors.blue;
     }
   }
 
@@ -235,6 +342,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final isAuthor = _post != null && user != null && _post!.authorId == user.id;
     final isAdmin = user?.isAdmin ?? false;
 
+    // 좋아요/싫어요 상태 확인
+    final bool isLiked = user != null && _post != null ? _post!.isLikedBy(user.id) : false;
+    final bool isDisliked = user != null && _post != null ? _post!.isDislikedBy(user.id) : false;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('게시글'),
@@ -292,6 +403,24 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // 태그 표시 추가
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _getTagColor(_post!.tag).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                _post!.displayTag,
+                                style: TextStyle(
+                                  color: _getTagColor(_post!.tag),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            
                             // 제목
                             Text(
                               _post!.title,
@@ -385,6 +514,59 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                   dense: true,
                                 ),
                             ],
+                            
+                            const SizedBox(height: 24),
+                            
+                            // 좋아요/싫어요 버튼 추가
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // 좋아요 버튼
+                                OutlinedButton.icon(
+                                  onPressed: _isLikeLoading ? null : _toggleLike,
+                                  icon: Icon(
+                                    isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                                    color: isLiked ? AppColors.primary : Colors.grey[600],
+                                    size: 20,
+                                  ),
+                                  label: Text(
+                                    '좋아요 ${_post!.likeCount}',
+                                    style: TextStyle(
+                                      color: isLiked ? AppColors.primary : Colors.grey[600],
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: isLiked ? AppColors.primary : Colors.grey[300]!,
+                                    ),
+                                    backgroundColor: isLiked ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                
+                                // // 싫어요 버튼
+                                // OutlinedButton.icon(
+                                //   onPressed: _isLikeLoading ? null : _toggleDislike,
+                                //   icon: Icon(
+                                //     isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                                //     color: isDisliked ? Colors.red : Colors.grey[600],
+                                //     size: 20,
+                                //   ),
+                                //   label: Text(
+                                //     '싫어요 ${_post!.dislikeCount}',
+                                //     style: TextStyle(
+                                //       color: isDisliked ? Colors.red : Colors.grey[600],
+                                //     ),
+                                //   ),
+                                //   style: OutlinedButton.styleFrom(
+                                //     side: BorderSide(
+                                //       color: isDisliked ? Colors.red : Colors.grey[300]!,
+                                //     ),
+                                //     backgroundColor: isDisliked ? Colors.red.withOpacity(0.1) : Colors.transparent,
+                                //   ),
+                                // ),
+                              ],
+                            ),
                             
                             const SizedBox(height: 32),
                             

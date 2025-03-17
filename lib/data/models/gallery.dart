@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_application_1/core/utils/image_utils.dart';
 
 class Gallery {
   final String id;

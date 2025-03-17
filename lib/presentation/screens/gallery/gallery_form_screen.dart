@@ -206,28 +206,6 @@ class _GalleryFormScreenState extends State<GalleryFormScreen> {
   }
 
   // 새 이미지 표시 위젯
-  Widget _buildNewImage(int index) {
-    if (kIsWeb) {
-      // 웹 환경
-      return index < webImageData.length 
-        ? Image.memory(
-            webImageData[index],
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-          )
-        : Container(color: Colors.grey[200]);
-    } else {
-      // 모바일 환경
-      return Image.file(
-        _newImages[index],
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
