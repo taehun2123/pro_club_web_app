@@ -1,6 +1,7 @@
 // lib/presentation/screens/home/home_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/presentation/widgets/notification_icon.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_1/core/theme/app_colors.dart';
 import 'package:flutter_application_1/data/services/auth_service.dart';
@@ -166,6 +167,7 @@ class _HomeTabState extends State<HomeTab> {
           ],
         ),
         actions: [
+          const NotificationIcon(),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {

@@ -3,11 +3,13 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_application_1/data/models/post.dart';
 import 'package:flutter_application_1/data/models/comment.dart';
+import 'package:flutter_application_1/data/services/notification_service.dart';
 import 'dart:io';
 
 class PostService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final NotificationService _notificationService = NotificationService();
   
   // 컬렉션 참조
   CollectionReference get _postsRef => _firestore.collection('posts');
@@ -109,7 +111,7 @@ class PostService {
     return fileUrls;
   }
   
-  // 게시글 추가 메서드 수정
+  // 게시글 추가 메서드 수정 - 멘션 기능 추가
   Future<String> addPost(
     Post post,
     List<File>? attachments,
@@ -147,14 +149,25 @@ class PostService {
       });
     }
     
+    // 게시글 내용에서 @멘션 처리
+    await _notificationService.processMentions(
+      content: post.content,
+      authorId: post.authorId,
+      authorName: post.authorName,
+      authorProfileImage: post.authorProfileImage,
+      sourceId: docRef.id,
+      sourceType: 'post',
+    );
+    
     return docRef.id;
   }
   
-  // 게시글 수정
+  // 게시글 수정 - 멘션 기능 추가
   Future<void> updatePost(
     Post post, 
     List<File>? newAttachments,
     List<String>? attachmentsToDelete,
+    {List<Uint8List>? webAttachments}
   ) async {
     // 기존 첨부 파일 중 삭제할 파일 제외
     final updatedAttachments = List<String>.from(post.attachments ?? []);
@@ -174,8 +187,13 @@ class PostService {
     }
     
     // 새 첨부 파일 업로드
-    if (newAttachments != null && newAttachments.isNotEmpty) {
-      final newFileUrls = await uploadAttachments(newAttachments, post.id);
+    if ((newAttachments != null && newAttachments.isNotEmpty) || 
+        (webAttachments != null && webAttachments.isNotEmpty)) {
+      final newFileUrls = await uploadAttachments(
+        newAttachments ?? [],
+        post.id,
+        webAttachments: webAttachments,
+      );
       updatedAttachments.addAll(newFileUrls);
     }
     
@@ -188,6 +206,16 @@ class PostService {
       'tag': post.tag,
       'customTag': post.customTag,
     });
+    
+    // 게시글 내용에서 @멘션 처리 (수정 시에도 추가된 멘션 처리)
+    await _notificationService.processMentions(
+      content: post.content,
+      authorId: post.authorId,
+      authorName: post.authorName,
+      authorProfileImage: post.authorProfileImage,
+      sourceId: post.id,
+      sourceType: 'post',
+    );
   }
   
   // 게시글 삭제
@@ -225,7 +253,7 @@ class PostService {
     await batch.commit();
   }
   
-  // 댓글 추가
+  // 댓글 추가 (멘션 및 알림 기능 추가)
   Future<String> addComment(Comment comment) async {
     // 댓글 추가
     final docRef = await _commentsRef(comment.postId).add(comment.toMap());
@@ -235,6 +263,58 @@ class PostService {
       'commentCount': FieldValue.increment(1),
     });
     
+    // 게시글 정보 가져오기
+    final post = await getPostById(comment.postId);
+    
+    if (post != null) {
+      // 댓글 내용에서 @멘션 처리
+      await _notificationService.processMentions(
+        content: comment.content,
+        authorId: comment.authorId,
+        authorName: comment.authorName,
+        authorProfileImage: comment.authorProfileImage,
+        sourceId: comment.postId,
+        sourceType: 'comment',
+      );
+      
+      // 댓글 알림 생성
+      if (comment.parentId == null) {
+        // 일반 댓글인 경우 - 게시글 작성자에게 알림
+        await _notificationService.createNewCommentNotification(
+          postId: comment.postId,
+          postAuthorId: post.authorId,
+          postTitle: post.title,
+          commentId: docRef.id,
+          commentContent: comment.content,
+          commentAuthorId: comment.authorId,
+          commentAuthorName: comment.authorName,
+          commentAuthorProfileImage: comment.authorProfileImage,
+        );
+      } else {
+        // 대댓글인 경우 - 부모 댓글 작성자에게 알림
+        final parentCommentDoc = await _commentsRef(comment.postId).doc(comment.parentId).get();
+        
+        if (parentCommentDoc.exists) {
+          final parentComment = Comment.fromMap(
+            parentCommentDoc.data() as Map<String, dynamic>,
+            parentCommentDoc.id,
+          );
+          
+          await _notificationService.createNewReplyNotification(
+            postId: comment.postId,
+            postTitle: post.title,
+            parentCommentId: comment.parentId!,
+            parentCommentAuthorId: parentComment.authorId,
+            replyId: docRef.id,
+            replyContent: comment.content,
+            replyAuthorId: comment.authorId,
+            replyAuthorName: comment.authorName,
+            replyAuthorProfileImage: comment.authorProfileImage,
+          );
+        }
+      }
+    }
+    
     return docRef.id;
   }
   
@@ -243,22 +323,113 @@ class PostService {
     await _commentsRef(comment.postId).doc(comment.id).update({
       'content': comment.content,
       'updatedAt': Timestamp.now(),
+      'mentionedUserId': comment.mentionedUserId,
+      'mentionedUserName': comment.mentionedUserName,
     });
+    
+    // 댓글 내용에서 @멘션 처리
+    await _notificationService.processMentions(
+      content: comment.content,
+      authorId: comment.authorId,
+      authorName: comment.authorName,
+      authorProfileImage: comment.authorProfileImage,
+      sourceId: comment.postId,
+      sourceType: 'comment',
+    );
   }
   
   // 댓글 삭제
   Future<void> deleteComment(String postId, String commentId) async {
-    await _commentsRef(postId).doc(commentId).delete();
+    // 대댓글 여부 확인을 위해 댓글 정보 가져오기
+    final commentDoc = await _commentsRef(postId).doc(commentId).get();
     
-    // 게시글의 댓글 수 감소
-    await _postsRef.doc(postId).update({
-      'commentCount': FieldValue.increment(-1),
-    });
+    if (commentDoc.exists) {
+      final comment = Comment.fromMap(
+        commentDoc.data() as Map<String, dynamic>,
+        commentId,
+      );
+      
+      // 삭제하려는 댓글이 부모 댓글인지 확인하고, 관련 대댓글도 함께 삭제
+      if (comment.parentId == null) {
+        // 부모 댓글인 경우, 이 댓글에 달린 모든 대댓글 조회
+        final repliesSnapshot = await _commentsRef(postId)
+            .where('parentId', isEqualTo: commentId)
+            .get();
+        
+        final batch = _firestore.batch();
+        
+        // 모든 대댓글 삭제
+        for (final replyDoc in repliesSnapshot.docs) {
+          batch.delete(replyDoc.reference);
+        }
+        
+        // 부모 댓글 삭제
+        batch.delete(_commentsRef(postId).doc(commentId));
+        
+        // 게시글의 댓글 수 업데이트
+        final decrementAmount = repliesSnapshot.docs.length + 1; // 대댓글 수 + 부모 댓글 1개
+        batch.update(_postsRef.doc(postId), {
+          'commentCount': FieldValue.increment(-decrementAmount),
+        });
+        
+        // 트랜잭션 실행
+        await batch.commit();
+      } else {
+        // 대댓글인 경우
+        await _commentsRef(postId).doc(commentId).delete();
+        
+        // 게시글의 댓글 수 감소
+        await _postsRef.doc(postId).update({
+          'commentCount': FieldValue.increment(-1),
+        });
+      }
+    } else {
+      // 댓글이 존재하지 않는 경우 예외 처리
+      throw Exception('댓글을 찾을 수 없습니다.');
+    }
   }
   
-  // 게시글의 모든 댓글 가져오기
+  // 게시글의 모든 댓글 가져오기 (대댓글 포함)
   Future<List<Comment>> getCommentsByPostId(String postId) async {
     final querySnapshot = await _commentsRef(postId)
+        .orderBy('createdAt')
+        .get();
+    
+    return querySnapshot.docs
+        .map((doc) => Comment.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+        .toList();
+  }
+  
+  // 댓글 그룹화 (대댓글은 부모 댓글 아래에 정렬되도록)
+  Future<Map<String, List<Comment>>> getGroupedCommentsByPostId(String postId) async {
+    final allComments = await getCommentsByPostId(postId);
+    
+    // 결과 맵: 부모 댓글 ID -> [부모 댓글, 대댓글1, 대댓글2, ...]
+    final Map<String, List<Comment>> groupedComments = {};
+    
+    // 부모 댓글 먼저 처리
+    for (final comment in allComments.where((c) => c.parentId == null)) {
+      groupedComments[comment.id] = [comment];
+    }
+    
+    // 대댓글 처리
+    for (final reply in allComments.where((c) => c.parentId != null)) {
+      final parentId = reply.parentId!;
+      if (groupedComments.containsKey(parentId)) {
+        groupedComments[parentId]!.add(reply);
+      } else {
+        // 부모 댓글이 삭제된 경우, 루트 레벨에 표시
+        groupedComments[reply.id] = [reply];
+      }
+    }
+    
+    return groupedComments;
+  }
+  
+  // 특정 댓글에 대한 대댓글만 가져오기
+  Future<List<Comment>> getRepliesByParentId(String postId, String parentId) async {
+    final querySnapshot = await _commentsRef(postId)
+        .where('parentId', isEqualTo: parentId)
         .orderBy('createdAt')
         .get();
     
@@ -346,6 +517,19 @@ class PostService {
         if (updatedDislikedBy.contains(userId)) {
           updatedDislikedBy.remove(userId);
         }
+        
+        // 좋아요 수가 임계값을 넘으면 인기 게시글 알림 생성
+        if (updatedLikedBy.length >= 5) { // 임계값은 필요에 따라 조정
+          // 트랜잭션 종료 후 알림 발생
+          Future.delayed(Duration.zero, () {
+            _notificationService.createHotPostNotification(
+              postId: post.id,
+              postTitle: post.title,
+              postAuthorId: post.authorId,
+              postAuthorName: post.authorName,
+            );
+          });
+        }
       }
       
       // Firestore 업데이트
@@ -383,8 +567,8 @@ class PostService {
       
       // Firestore 업데이트
       transaction.update(postRef, {
-        'likedBy': updatedDislikedBy,
-        'dislikedBy': updatedLikedBy,
+        'likedBy': updatedLikedBy,
+        'dislikedBy': updatedDislikedBy,
       });
     });
   }

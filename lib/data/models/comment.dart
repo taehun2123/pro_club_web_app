@@ -9,6 +9,11 @@ class Comment {
   final String? authorProfileImage;
   final Timestamp createdAt;
   final Timestamp? updatedAt;
+  
+  // 대댓글(답글) 관련 필드 추가
+  final String? parentId;     // 부모 댓글 ID (대댓글인 경우에만 값 있음)
+  final String? mentionedUserId; // 멘션된 사용자 ID (댓글에서 @멘션한 경우)
+  final String? mentionedUserName; // 멘션된 사용자 이름
 
   Comment({
     required this.id,
@@ -19,6 +24,9 @@ class Comment {
     this.authorProfileImage,
     required this.createdAt,
     this.updatedAt,
+    this.parentId,
+    this.mentionedUserId,
+    this.mentionedUserName,
   });
 
   factory Comment.fromMap(Map<String, dynamic> map, String docId) {
@@ -31,6 +39,9 @@ class Comment {
       authorProfileImage: map['authorProfileImage'],
       createdAt: map['createdAt'] ?? Timestamp.now(),
       updatedAt: map['updatedAt'],
+      parentId: map['parentId'],
+      mentionedUserId: map['mentionedUserId'],
+      mentionedUserName: map['mentionedUserName'],
     );
   }
 
@@ -43,6 +54,9 @@ class Comment {
       'authorProfileImage': authorProfileImage,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
+      'parentId': parentId,
+      'mentionedUserId': mentionedUserId,
+      'mentionedUserName': mentionedUserName,
     };
   }
 
@@ -56,6 +70,9 @@ class Comment {
     String? authorProfileImage,
     Timestamp? createdAt,
     Timestamp? updatedAt,
+    String? parentId,
+    String? mentionedUserId,
+    String? mentionedUserName,
   }) {
     return Comment(
       id: id ?? this.id,
@@ -66,6 +83,9 @@ class Comment {
       authorProfileImage: authorProfileImage ?? this.authorProfileImage,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      parentId: parentId ?? this.parentId,
+      mentionedUserId: mentionedUserId ?? this.mentionedUserId,
+      mentionedUserName: mentionedUserName ?? this.mentionedUserName,
     );
   }
 
@@ -74,4 +94,7 @@ class Comment {
     final date = createdAt.toDate();
     return '${date.year}년 ${date.month}월 ${date.day}일 ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
+  
+  // 대댓글 여부
+  bool get isReply => parentId != null;
 }

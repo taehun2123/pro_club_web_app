@@ -48,6 +48,7 @@ dependencies:
   url_launcher: ^6.3.1
   photo_view: ^0.15.0
   email_validator: ^3.0.0
+  firebase_messaging: ^15.2.4
 
 dev_dependencies:
   flutter_test:
