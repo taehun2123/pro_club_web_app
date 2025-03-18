@@ -121,7 +121,7 @@ class AuthWrapper extends StatelessWidget {
                 final userProvider = Provider.of<UserProvider>(context, listen: false);
                 userProvider.setUser(appUser);
                 
-                // 알림 제공자 초기화
+                // 알림 제공자 초기화 - 수정된 부분
                 final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
                 notificationProvider.initialize(appUser.id);
               });
@@ -158,6 +158,10 @@ class AuthWrapper extends StatelessWidget {
                     );
                     
                     Provider.of<UserProvider>(context, listen: false).setUser(newUser);
+                    
+                    // 알림 제공자 초기화 - 수정된 부분
+                    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+                    notificationProvider.initialize(newUser.id);
                   });
                   
                   return const UserInfoScreen();

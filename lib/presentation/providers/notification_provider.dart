@@ -1,3 +1,5 @@
+// lib/presentation/providers/notification_provider.dart
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_application_1/data/models/notification.dart';
@@ -9,6 +11,7 @@ class NotificationProvider extends ChangeNotifier {
   List<AppNotification> _notifications = [];
   int _unreadCount = 0;
   bool _isLoading = false;
+  bool _isInitialized = false; // 초기화 상태 추적
   
   // 스트림 구독
   StreamSubscription? _notificationsSubscription;
@@ -18,44 +21,66 @@ class NotificationProvider extends ChangeNotifier {
   List<AppNotification> get notifications => _notifications;
   int get unreadCount => _unreadCount;
   bool get isLoading => _isLoading;
+  bool get isInitialized => _isInitialized;
   
   // 초기화 (사용자 로그인 시 호출)
-  void initialize(String userId) {
-    _disposeSubscriptions();
-    
-    // FCM 토큰 등록 (모바일 푸시 알림용)
-    if (!kIsWeb) {
-      _notificationService.registerFCMToken(userId);
+  Future<void> initialize(String userId) async {
+    if (_isInitialized && _notificationsSubscription != null) {
+      // 이미 초기화된 경우 중복 초기화 방지
+      return;
     }
     
-    // 알림 목록 구독
-    _notificationsSubscription = _notificationService
-        .getNotificationsStream(userId)
-        .listen((notifications) {
-          _notifications = notifications;
-          notifyListeners();
-        });
+    _disposeSubscriptions();
+    _isLoading = true;
+    notifyListeners();
     
-    // 읽지 않은 알림 개수 구독
-    _unreadCountSubscription = _notificationService
-        .getUnreadNotificationCount(userId)
-        .listen((count) {
-          _unreadCount = count;
-          notifyListeners();
-        });
+    try {
+      // FCM 토큰 등록 (모바일 푸시 알림용)
+      if (!kIsWeb) {
+        await _notificationService.registerFCMToken(userId);
+      }
+      
+      // 알림 목록 구독
+      _notificationsSubscription = _notificationService
+          .getNotificationsStream(userId)
+          .listen((notifications) {
+            _notifications = notifications;
+            notifyListeners();
+          });
+      
+      // 읽지 않은 알림 개수 구독
+      _unreadCountSubscription = _notificationService
+          .getUnreadNotificationCount(userId)
+          .listen((count) {
+            _unreadCount = count;
+            notifyListeners();
+          });
+          
+      _isInitialized = true;
+    } catch (e) {
+      print('알림 초기화 오류: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
   
-  // 정리 (사용자 로그아웃 시 호출) - 메서드 이름 변경
-  void clearNotifications(String userId) {
+  // 정리 (사용자 로그아웃 시 호출)
+  Future<void> clearNotifications(String userId) async {
     _disposeSubscriptions();
     
     // FCM 토큰 삭제
     if (!kIsWeb) {
-      _notificationService.unregisterFCMToken(userId);
+      try {
+        await _notificationService.unregisterFCMToken(userId);
+      } catch (e) {
+        print('FCM 토큰 삭제 오류: $e');
+      }
     }
     
     _notifications = [];
     _unreadCount = 0;
+    _isInitialized = false;
     notifyListeners();
   }
   
@@ -70,7 +95,14 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> markAsRead(String notificationId) async {
     try {
       await _notificationService.markAsRead(notificationId);
-      // 실시간 스트림으로 이미 업데이트되므로 별도로 상태 업데이트 필요 없음
+      // 로컬 상태 업데이트 (스트림 업데이트를 기다리지 않고 즉시 반영)
+      final index = _notifications.indexWhere((n) => n.id == notificationId);
+      if (index != -1) {
+        final updatedNotification = _notifications[index].copyWithRead();
+        _notifications[index] = updatedNotification;
+        _unreadCount = _unreadCount > 0 ? _unreadCount - 1 : 0;
+        notifyListeners();
+      }
     } catch (e) {
       print('알림 읽음 처리 오류: $e');
       rethrow;
@@ -84,6 +116,10 @@ class NotificationProvider extends ChangeNotifier {
       notifyListeners();
       
       await _notificationService.markAllAsRead(userId);
+      
+      // 로컬 상태 업데이트
+      _notifications = _notifications.map((n) => n.copyWithRead()).toList();
+      _unreadCount = 0;
       
       _isLoading = false;
       notifyListeners();
@@ -99,7 +135,14 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> deleteNotification(String notificationId) async {
     try {
       await _notificationService.deleteNotification(notificationId);
-      // 실시간 스트림으로 이미 업데이트되므로 별도로 상태 업데이트 필요 없음
+      
+      // 로컬 상태 업데이트
+      final wasUnread = _notifications.any((n) => n.id == notificationId && !n.isRead);
+      _notifications.removeWhere((n) => n.id == notificationId);
+      if (wasUnread) {
+        _unreadCount = _unreadCount > 0 ? _unreadCount - 1 : 0;
+      }
+      notifyListeners();
     } catch (e) {
       print('알림 삭제 오류: $e');
       rethrow;
@@ -113,6 +156,10 @@ class NotificationProvider extends ChangeNotifier {
       notifyListeners();
       
       await _notificationService.deleteAllNotifications(userId);
+      
+      // 로컬 상태 업데이트
+      _notifications = [];
+      _unreadCount = 0;
       
       _isLoading = false;
       notifyListeners();
