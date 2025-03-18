@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/presentation/widgets/comment_input_with_mention.dart';
+import 'package:flutter_application_1/presentation/widgets/user_profile_popup.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_1/core/theme/app_colors.dart';
 import 'package:flutter_application_1/data/models/post.dart';
@@ -529,18 +530,42 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           // 작성자 및 날짜
                           Row(
                             children: [
-                              Text(
-                                _post!.authorName,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              Text(
-                                ' · ',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
+                              Expanded(
+                                child: FutureBuilder<DocumentSnapshot>(
+                                  future:
+                                      FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(_post!.authorId)
+                                          .get(),
+                                  builder: (context, snapshot) {
+                                    // 닉네임 정보 가져오기
+                                    String? nickname;
+                                    if (snapshot.hasData &&
+                                        snapshot.data!.exists) {
+                                      final userData =
+                                          snapshot.data!.data()
+                                              as Map<String, dynamic>;
+                                      nickname =
+                                          userData['nickname'] as String?;
+                                    }
+
+                                    return AuthorInfoWidget(
+                                      authorId: _post!.authorId,
+                                      authorName: _post!.authorName,
+                                      authorNickname: nickname,
+                                      authorProfileImage:
+                                          _post!.authorProfileImage,
+                                      avatarRadius: 14,
+                                      nameStyle: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                      nicknameStyle: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.primary,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                               Text(
@@ -775,71 +800,44 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 프로필 이미지
-              if (comment.authorProfileImage != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: CachedNetworkImage(
-                    imageUrl: comment.authorProfileImage!,
-                    width: 32,
-                    height: 32,
-                    fit: BoxFit.cover,
-                    placeholder:
-                        (context, url) => Container(color: Colors.grey[300]),
-                    errorWidget:
-                        (context, url, error) => Container(
-                          color: Colors.grey[300],
-                          child: const Icon(Icons.person, color: Colors.white),
-                        ),
-                  ),
-                )
-              else
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.person,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              const SizedBox(width: 8),
-
-              // 작성자 및 날짜
+              // 작성자 정보 표시 (AuthorInfoWidget 사용)
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          comment.authorName,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        // 대댓글 표시
-                        if (!isParent) ...[
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.subdirectory_arrow_right,
-                            size: 14,
-                            color: Colors.grey,
-                          ),
-                        ],
-                      ],
-                    ),
-                    Text(
-                      createdDate,
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                  ],
+                child: FutureBuilder<DocumentSnapshot>(
+                  future:
+                      FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(comment.authorId)
+                          .get(),
+                  builder: (context, snapshot) {
+                    // 닉네임 정보 가져오기
+                    String? nickname;
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      final userData =
+                          snapshot.data!.data() as Map<String, dynamic>;
+                      nickname = userData['nickname'] as String?;
+                    }
+
+                    return AuthorInfoWidget(
+                      authorId: comment.authorId,
+                      authorName: comment.authorName,
+                      authorNickname: nickname,
+                      authorProfileImage: comment.authorProfileImage,
+                      avatarRadius: 14,
+                      nameStyle: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      nicknameStyle: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                      ),
+                    );
+                  },
                 ),
+              ),
+              Text(
+                createdDate,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
 
               // 답글/삭제 버튼

@@ -1,15 +1,17 @@
 // lib/presentation/screens/profile/profile_screen.dart
 
-// profile_screen.dart 파일 상단에 추가:
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_application_1/core/theme/app_colors.dart';
 import 'package:flutter_application_1/data/services/auth_service.dart';
 import 'package:flutter_application_1/data/services/post_service.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/screens/auth/login_screen.dart';
 import 'package:flutter_application_1/presentation/screens/board/post_detail_screen.dart';
+import 'package:flutter_application_1/presentation/widgets/custom_text_field.dart';
+import 'package:flutter_application_1/presentation/widgets/custom_button.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -25,7 +27,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   final AuthService _authService = AuthService();
-  // final PostService _postService = PostService();
+  final PostService _postService = PostService();
   final ImagePicker _imagePicker = ImagePicker();
 
   late TabController _tabController;
@@ -35,12 +37,26 @@ class _ProfileScreenState extends State<ProfileScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadUserData();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  // 사용자 데이터 새로고침
+  Future<void> _loadUserData() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    try {
+      final userData = await _authService.getCurrentUserData();
+      if (userData != null) {
+        userProvider.setUser(userData);
+      }
+    } catch (e) {
+      print('사용자 데이터 로드 실패: $e');
+    }
   }
 
   Future<void> _signOut() async {
@@ -130,10 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       }
 
       // 사용자 정보 새로고침
-      final updatedUser = await _authService.getCurrentUserData();
-      if (updatedUser != null) {
-        Provider.of<UserProvider>(context, listen: false).setUser(updatedUser);
-      }
+      await _loadUserData();
 
       // UI 갱신
       setState(() {
@@ -150,6 +163,63 @@ class _ProfileScreenState extends State<ProfileScreen>
         context,
       ).showSnackBar(SnackBar(content: Text('프로필 이미지 업데이트 중 오류가 발생했습니다: $e')));
     }
+  }
+
+  // 별명(닉네임) 수정 다이얼로그를 표시하는 함수
+  void _showEditNicknameDialog() {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final user = userProvider.user;
+    
+    if (user == null) return;
+    
+    final TextEditingController nicknameController = TextEditingController();
+    nicknameController.text = user.nickname ?? '';
+    
+    showDialog(
+      context: context,
+      builder: (context) => EditNicknameDialog(
+        initialNickname: user.nickname ?? '',
+        nicknameController: nicknameController,
+      ),
+    ).then((updated) {
+      if (updated == true) {
+        // 닉네임 업데이트 후 사용자 정보 새로고침
+        _loadUserData();
+      }
+    });
+  }
+
+  // 별명(닉네임) 표시 및 수정 버튼
+  Widget _buildNicknameSection() {
+    final user = Provider.of<UserProvider>(context).user;
+    if (user == null) return const SizedBox.shrink();
+    
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          user.nickname != null && user.nickname!.isNotEmpty
+              ? '@${user.nickname}'
+              : '별명 없음',
+          style: TextStyle(
+            fontSize: 16,
+            color: user.nickname != null && user.nickname!.isNotEmpty
+                ? AppColors.primary
+                : Colors.grey,
+            fontStyle: user.nickname != null && user.nickname!.isNotEmpty
+                ? FontStyle.normal
+                : FontStyle.italic,
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.edit, size: 16),
+          onPressed: _showEditNicknameDialog,
+          color: AppColors.primary,
+          padding: const EdgeInsets.only(left: 4),
+          constraints: const BoxConstraints(),
+        ),
+      ],
+    );
   }
 
   @override
@@ -240,6 +310,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ),
                 const SizedBox(height: 4),
+                
+                // 별명 표시 및 수정 버튼
+                _buildNicknameSection(),
+                const SizedBox(height: 8),
 
                 // 이메일
                 Text(
@@ -300,6 +374,179 @@ class _ProfileScreenState extends State<ProfileScreen>
         ],
       ),
     );
+  }
+}
+
+/// 별명(닉네임) 수정 다이얼로그 위젯
+class EditNicknameDialog extends StatefulWidget {
+  final String initialNickname;
+  final TextEditingController nicknameController;
+  
+  const EditNicknameDialog({
+    Key? key,
+    required this.initialNickname,
+    required this.nicknameController,
+  }) : super(key: key);
+  
+  @override
+  _EditNicknameDialogState createState() => _EditNicknameDialogState();
+}
+
+class _EditNicknameDialogState extends State<EditNicknameDialog> {
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+  bool _isNicknameAvailable = true;
+  String? _errorMessage;
+  
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('별명 변경'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '새로운 별명을 입력하세요.\n별명은 멘션(@)에 사용됩니다.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            CustomTextField(
+              controller: widget.nicknameController,
+              label: '별명',
+              hintText: '별명을 입력하세요',
+              validator: _validateNickname,
+              onChanged: (value) {
+                // 입력값이 변경되면 오류 메시지 초기화
+                if (_errorMessage != null) {
+                  setState(() {
+                    _errorMessage = null;
+                    _isNicknameAvailable = true;
+                  });
+                }
+              },
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage!,
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context, false),
+          child: const Text('취소'),
+        ),
+        _isLoading
+            ? Container(
+                margin: const EdgeInsets.only(left: 8, right: 8),
+                width: 24,
+                height: 24,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              )
+            : ElevatedButton(
+                onPressed: _updateNickname,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                ),
+                child: const Text('저장'),
+              ),
+      ],
+    );
+  }
+  
+  String? _validateNickname(String? value) {
+    if (value == null || value.isEmpty) {
+      return null; // 빈 값은 허용 (별명 제거)
+    }
+    
+    if (value.length < 2) {
+      return '별명은 2자 이상이어야 합니다';
+    }
+    
+    if (value.length > 20) {
+      return '별명은 20자 이하여야 합니다';
+    }
+    
+    if (!RegExp(r'^[a-zA-Z0-9가-힣\s]+$').hasMatch(value)) {
+      return '별명은 한글, 영문, 숫자, 공백만 사용할 수 있습니다';
+    }
+    
+    return null;
+  }
+  
+  Future<void> _updateNickname() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    
+    try {
+      final authService = AuthService();
+      final user = authService.currentUser;
+      final newNickname = widget.nicknameController.text.trim();
+      
+      if (user == null) {
+        throw Exception('로그인된 사용자가 없습니다');
+      }
+      
+      // 기존 닉네임과 동일한 경우 변경 없이 종료
+      if (newNickname == widget.initialNickname) {
+        Navigator.pop(context, false);
+        return;
+      }
+      
+      // 닉네임 중복 확인 (빈 값이 아닌 경우에만)
+      if (newNickname.isNotEmpty) {
+        final nicknameQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('nickname', isEqualTo: newNickname)
+            .get();
+            
+        if (nicknameQuery.docs.isNotEmpty) {
+          // 이미 사용 중인 닉네임
+          setState(() {
+            _isLoading = false;
+            _isNicknameAvailable = false;
+            _errorMessage = '이미 사용 중인 별명입니다';
+          });
+          return;
+        }
+      }
+      
+      // 닉네임 업데이트
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+            'nickname': newNickname,
+          });
+      
+      // UserProvider 업데이트
+      if (mounted) {
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        await userProvider.refreshUser(authService);
+        
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '별명 변경 중 오류가 발생했습니다: $e';
+      });
+    }
   }
 }
 

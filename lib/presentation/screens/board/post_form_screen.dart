@@ -229,7 +229,9 @@ class _PostFormScreenState extends State<PostFormScreen> {
                       controller: _contentController,
                       label: '내용',
                       hintText: '내용을 입력하세요',
-                      maxLines: 10,
+                      maxLines: 20, // 더 많은 줄 수 허용
+                      keyboardType: TextInputType.multiline, // 다중 줄 키보드 타입 설정
+                      textInputAction: TextInputAction.newline, // 엔터키를 줄바꿈으로 처리
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return '내용을 입력해주세요.';

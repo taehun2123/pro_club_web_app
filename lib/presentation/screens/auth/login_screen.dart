@@ -129,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       )
                       : ElevatedButton.icon(
-                        icon: Image.asset('images/google_logo.png', height: 24),
+                        icon: Image.asset('assets/images/google_logo.png', height: 24),
                         label: const Text(
                           'Google로 로그인',
                           style: TextStyle(

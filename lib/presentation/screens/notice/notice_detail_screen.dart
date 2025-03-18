@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/presentation/widgets/user_profile_popup.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_1/core/theme/app_colors.dart';
 import 'package:flutter_application_1/data/models/notice.dart';
@@ -185,13 +187,42 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
                       // 작성자 및 날짜
                       Row(
                         children: [
-                          Text(
-                            _notice!.authorName,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
+                              Expanded(
+                                child: FutureBuilder<DocumentSnapshot>(
+                                  future:
+                                      FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(_notice!.authorId)
+                                          .get(),
+                                  builder: (context, snapshot) {
+                                    // 닉네임 정보 가져오기
+                                    String? nickname;
+                                    if (snapshot.hasData &&
+                                        snapshot.data!.exists) {
+                                      final userData =
+                                          snapshot.data!.data()
+                                              as Map<String, dynamic>;
+                                      nickname =
+                                          userData['nickname'] as String?;
+                                    }
+
+                                    return AuthorInfoWidget(
+                                      authorId: _notice!.authorId,
+                                      authorName: _notice!.authorName,
+                                      authorNickname: nickname,
+                                      avatarRadius: 14,
+                                      nameStyle: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                      nicknameStyle: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.primary,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
                           const SizedBox(width: 8),
                           Text(
                             DateFormat('yyyy.MM.dd HH:mm').format(_notice!.createdAt.toDate()),

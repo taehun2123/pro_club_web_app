@@ -11,11 +11,12 @@ class CustomTextField extends StatelessWidget {
   final Widget? suffix;
   final bool obscureText;
   final TextInputType keyboardType;
+  final TextInputAction? textInputAction; // 추가된 속성
   final String? Function(String?)? validator;
   final int maxLines;
   final Function(String)? onChanged;
+  final bool enableInteractiveSelection; // 추가된 속성
   
-
   const CustomTextField({
     Key? key,
     required this.controller,
@@ -25,9 +26,11 @@ class CustomTextField extends StatelessWidget {
     this.suffix,
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
+    this.textInputAction, // 기본값 없이 옵션으로 설정
     this.validator,
     this.maxLines = 1,
     this.onChanged,
+    this.enableInteractiveSelection = true, // 기본적으로 활성화
   }) : super(key: key);
 
   @override
@@ -79,9 +82,22 @@ class CustomTextField extends StatelessWidget {
           ),
           obscureText: obscureText,
           keyboardType: keyboardType,
+          textInputAction: textInputAction, // 텍스트 입력 액션 설정
           validator: validator,
           maxLines: maxLines,
           onChanged: onChanged,
+          enableInteractiveSelection: enableInteractiveSelection, // 텍스트 선택 기능 제어
+          // 모바일에서 텍스트 선택 및 커서 이동 문제 해결을 위한 추가 설정
+          toolbarOptions: const ToolbarOptions(
+            copy: true,
+            cut: true,
+            paste: true,
+            selectAll: true,
+          ),
+          // 추가 스타일 설정
+          style: const TextStyle(
+            height: 1.5, // 줄 간격 설정
+          ),
         ),
       ],
     );
