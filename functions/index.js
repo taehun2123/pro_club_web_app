@@ -7,8 +7,13 @@ const {getFirestore, FieldValue} = require("firebase-admin/firestore");
 
 initializeApp();
 
+const functionOptions = {
+  region: "asia-northeast3", // 리전 설정 (도쿄)
+  memory: "256MiB", // 메모리 설정 (기본값)
+  timeoutSeconds: 60, // 타임아웃 설정 (기본값)
+};
 // 새 공지사항이 생성될 때 알림 전송
-exports.sendNoticeNotification = onDocumentCreated("notices/{noticeId}", async (event) => {
+exports.sendNoticeNotification = onDocumentCreated("notices/{noticeId}", functionOptions, async (event) => {
   const snapshot = event.data;
   const context = event.params;
 

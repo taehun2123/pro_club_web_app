@@ -38,7 +38,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
           if (notificationProvider.unreadCount > 0)
             TextButton(
               onPressed: () {
-                notificationProvider.markAllAsRead(user.id);
+                // 변경된 메서드 호출 방식: userId 매개변수 제거
+                notificationProvider.markAllAsRead();
               },
               child: const Text(
                 '모두 읽음 처리',
@@ -49,7 +50,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
             icon: const Icon(Icons.delete_outline),
             onPressed: notifications.isEmpty 
                 ? null 
-                : () => _showDeleteConfirmDialog(context, user.id),
+                : () => _showDeleteConfirmDialog(context),
             tooltip: '모든 알림 삭제',
           ),
         ],
@@ -232,7 +233,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
   
   // 모든 알림 삭제 확인 다이얼로그
-  Future<void> _showDeleteConfirmDialog(BuildContext context, String userId) async {
+  // userId 매개변수 제거
+  Future<void> _showDeleteConfirmDialog(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -254,7 +256,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
     if (confirmed == true) {
       final notificationProvider = 
           Provider.of<NotificationProvider>(context, listen: false);
-      notificationProvider.deleteAllNotifications(userId);
+      // 변경된 메서드 호출 방식: userId 매개변수 제거
+      notificationProvider.deleteAllNotifications();
     }
   }
 }

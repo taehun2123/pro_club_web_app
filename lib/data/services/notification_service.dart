@@ -4,6 +4,7 @@ import 'package:flutter_application_1/data/models/notification.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:js' as js;
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -14,101 +15,162 @@ class NotificationService {
       _firestore.collection('notifications');
   CollectionReference get _usersRef => _firestore.collection('users');
 
+  // 알림 초기화
+  Future<void> initialize(String userId) async {
+    // 알림 권한 요청
+    final settings = await _messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    print('알림 권한 상태: ${settings.authorizationStatus}');
+    
+    // FCM 토큰 등록 (웹/모바일 모두)
+    await registerFCMToken(userId);
+    
+    // 모바일 환경에서만 토픽 구독 (웹에서는 토픽 구독 지원 안 함)
+    if (!kIsWeb) {
+      try {
+        await _messaging.subscribeToTopic('all_notices');
+        print('토픽 구독 성공: all_notices');
+      } catch (e) {
+        print('토픽 구독 오류: $e');
+      }
+    }
+    
+    // 포그라운드 메시지 핸들러
+    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+  }
+  
+  // 포그라운드 메시지 처리
+  void _handleForegroundMessage(RemoteMessage message) {
+    print('포그라운드 메시지 수신:');
+    print('  제목: ${message.notification?.title}');
+    print('  내용: ${message.notification?.body}');
+    print('  데이터: ${message.data}');
+    
+    // 여기에 앱 내 알림 표시 로직 추가
+    // 예: fluttertoast, overlay_support 등의 패키지 사용
+  }
+
   // FCM 토큰 등록 (웹 및 모바일 푸시 알림용)
   Future<void> registerFCMToken(String userId) async {
     try {
-      // FCM 권한 요청
-      final settings = await _messaging.requestPermission(
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        criticalAlert: false,
-        provisional: false,
-        sound: true,
-      );
-
-      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional) {
-        // 토큰 가져오기 (웹에서는 VAPID 키 필요)
-        String? token;
-        if (kIsWeb) {
-          // 웹에서 토큰 가져오기 (VAPID 키 필요)
-          final vapidKey = dotenv.env['VAPID_KEY'];
+      // FCM 권한 요청 (이미 initialize에서 요청했으므로 중복 제거)
+      // 토큰 가져오기 (웹에서는 VAPID 키 필요)
+      String? token;
+      
+      if (kIsWeb) {
+        // 웹에서 토큰 가져오기 (VAPID 키 필요)
+        final vapidKey = dotenv.env['VAPID_KEY'];
+        if (vapidKey == null || vapidKey.isEmpty) {
+          print('VAPID_KEY가 설정되지 않았습니다.');
+          return;
+        }
+        
+        try {
           token = await _messaging.getToken(
             vapidKey: vapidKey, // Firebase 콘솔에서 생성한 웹 푸시 인증서 키
           );
           print('웹 FCM 토큰: $token');
-        } else {
-          // 모바일에서 토큰 가져오기
-          token = await _messaging.getToken();
-          print('모바일 FCM 토큰: $token');
-        }
-
-        if (token != null) {
-          // 기존 토큰 목록 확인
-          final userDoc = await _usersRef.doc(userId).get();
-          final userData = userDoc.data() as Map<String, dynamic>?;
-
-          if (userData != null) {
-            List<String> existingTokens = [];
-            if (userData.containsKey('fcmTokens') &&
-                userData['fcmTokens'] is List) {
-              existingTokens = List<String>.from(userData['fcmTokens']);
+        } catch (e) {
+          print('웹 FCM 토큰 가져오기 오류: $e');
+          
+          // 서비스 워커 상태 확인 (디버깅용)
+          if (js.context.hasProperty('navigator') &&
+              js.context['navigator'].hasProperty('serviceWorker')) {
+            try {
+              final swRegistration = await js.context['navigator']['serviceWorker']
+                  .callMethod('getRegistration', ['/firebase-messaging-sw.js']);
+              
+              if (swRegistration != null) {
+                print('Firebase 메시징 서비스 워커가 등록되어 있습니다.');
+              } else {
+                print('Firebase 메시징 서비스 워커가 등록되지 않았습니다.');
+              }
+            } catch (e) {
+              print('서비스 워커 상태 확인 오류: $e');
             }
-
-            // 중복 토큰 방지
-            if (!existingTokens.contains(token)) {
-              await _usersRef.doc(userId).update({
-                'fcmTokens': FieldValue.arrayUnion([token]),
-              });
-              print('FCM 토큰 등록 성공: $token');
-            }
-          } else {
-            // 사용자 문서가 없는 경우
-            await _usersRef.doc(userId).set({
-              'fcmTokens': [token],
-            }, SetOptions(merge: true));
           }
-
-          // 웹에서는 토픽 구독 추가
-          if (kIsWeb) {
-            await _messaging.subscribeToTopic('all_notices');
-            print('웹 알림 토픽 구독 성공: all_notices');
-          }
+          
+          rethrow;
         }
       } else {
-        print('FCM 권한 거부됨: ${settings.authorizationStatus}');
+        // 모바일에서 토큰 가져오기
+        token = await _messaging.getToken();
+        print('모바일 FCM 토큰: $token');
+      }
+
+      if (token != null) {
+        // 기존 토큰 목록 확인
+        final userDoc = await _usersRef.doc(userId).get();
+        final userData = userDoc.data() as Map<String, dynamic>?;
+
+        if (userData != null) {
+          List<String> existingTokens = [];
+          if (userData.containsKey('fcmTokens') &&
+              userData['fcmTokens'] is List) {
+            existingTokens = List<String>.from(userData['fcmTokens']);
+          }
+
+          // 중복 토큰 방지
+          if (!existingTokens.contains(token)) {
+            await _usersRef.doc(userId).update({
+              'fcmTokens': FieldValue.arrayUnion([token]),
+            });
+            print('FCM 토큰 등록 성공: $token');
+          }
+        } else {
+          // 사용자 문서가 없는 경우
+          await _usersRef.doc(userId).set({
+            'fcmTokens': [token],
+          }, SetOptions(merge: true));
+        }
       }
     } catch (e) {
       print('FCM 토큰 등록 오류: $e');
     }
   }
 
-
   // FCM 토큰 삭제 (로그아웃 시)
   Future<void> unregisterFCMToken(String userId) async {
     try {
-      final token = await _messaging.getToken();
+      String? token;
+      
+      if (kIsWeb) {
+        // 웹에서 토큰 가져오기 (VAPID 키 필요)
+        final vapidKey = dotenv.env['VAPID_KEY'];
+        if (vapidKey != null) {
+          token = await _messaging.getToken(vapidKey: vapidKey);
+        }
+      } else {
+        // 모바일에서 토큰 가져오기
+        token = await _messaging.getToken();
+        
+        // 모바일에서만 토픽 구독 해제
+        try {
+          await _messaging.unsubscribeFromTopic('all_notices');
+          print('토픽 구독 해제 성공: all_notices');
+        } catch (e) {
+          print('토픽 구독 해제 오류: $e');
+        }
+      }
+      
       if (token != null) {
+        // Firestore에서 토큰 제거
         await _usersRef.doc(userId).update({
           'fcmTokens': FieldValue.arrayRemove([token]),
         });
-
-        // 토픽 구독 해제 (웹)
-        if (kIsWeb) {
-          await _messaging.unsubscribeFromTopic('all_notices');
-        }
+        print('FCM 토큰 제거 성공: $token');
 
         // 토큰 삭제
         await _messaging.deleteToken();
+        print('FCM 토큰 삭제 완료');
       }
     } catch (e) {
       print('FCM 토큰 삭제 오류: $e');
     }
   }
-
-
 
   // 사용자별 알림 목록 조회
   Stream<List<AppNotification>> getNotificationsStream(String userId) {
@@ -147,21 +209,6 @@ class NotificationService {
   Future<String> addNotification(AppNotification notification) async {
     try {
       final docRef = await _notificationsRef.add(notification.toMap());
-
-      // 사용자의 FCM 토큰 조회 (모바일 푸시 알림용)
-      if (!kIsWeb) {
-        final userDoc = await _usersRef.doc(notification.userId).get();
-        final userData = userDoc.data() as Map<String, dynamic>?;
-
-        if (userData != null && userData['fcmTokens'] != null) {
-          final List<dynamic> tokens = userData['fcmTokens'] ?? [];
-
-          // FCM 서버 키를 사용하여 푸시 알림 전송 (백엔드에서 처리하는 것이 보안상 더 좋음)
-          // 여기서는 생략하고 주석으로만 표시
-          // 실제로는 Cloud Functions를 사용하여 구현하는 것이 좋음
-        }
-      }
-
       return docRef.id;
     } catch (e) {
       print('알림 추가 오류: $e');
@@ -229,7 +276,6 @@ class NotificationService {
   }
 
   // @멘션 알림 생성
-  // 멘션 알림 생성 메서드 수정 - FCM 웹 푸시 알림 추가
   Future<void> createMentionNotification({
     required String mentionedUserId,
     required String mentionerName,
@@ -258,7 +304,7 @@ class NotificationService {
     print('멘션 알림 생성 완료 (ID: $docRef). Cloud Functions에서 푸시 알림 처리 예정');
   }
 
-  // 새 공지사항 알림 생성 메서드 수정 - FCM 웹 푸시 추가
+  // 새 공지사항 알림 생성
   Future<void> createNewNoticeNotification({
     required String noticeId,
     required String noticeTitle,
@@ -424,101 +470,98 @@ class NotificationService {
     }
   }
 
-  // 사용자 멘션 처리 (게시글/댓글 텍스트에서 @username 형식으로 언급된 사용자를 찾아 알림 발송)
-Future<void> processMentions({
-  required String content,
-  required String authorId,
-  required String authorName,
-  String? authorProfileImage,
-  required String sourceId,
-  required String sourceType,
-}) async {
-  print('멘션 처리 시작: $content');
-  
-  // @username 형식의 멘션 패턴 찾기 (기본 패턴)
-  final mentionPattern = RegExp(r'@([^\s@]+)');
-  final matches = mentionPattern.allMatches(content);
-  
-  if (matches.isEmpty) {
-    print('멘션 없음');
-    return;
-  }
-  
-  // 멘션된 사용자 목록 (중복 제거)
-  final Set<String> mentionedUsernames = {};
-  
-  for (final match in matches) {
-    final username = match.group(1);
-    if (username != null && username.isNotEmpty) {
-      mentionedUsernames.add(username);
-      print('멘션된 사용자: $username');
+  // 사용자 멘션 처리
+  Future<void> processMentions({
+    required String content,
+    required String authorId,
+    required String authorName,
+    String? authorProfileImage,
+    required String sourceId,
+    required String sourceType,
+  }) async {
+    print('멘션 처리 시작: $content');
+    
+    // @username 형식의 멘션 패턴 찾기 (기본 패턴)
+    final mentionPattern = RegExp(r'@([^\s@]+)');
+    final matches = mentionPattern.allMatches(content);
+    
+    if (matches.isEmpty) {
+      print('멘션 없음');
+      return;
     }
-  }
-  
-  for (final username in mentionedUsernames) {
-    try {
-      // 수정된 부분: nickname의 시작 부분이 일치하는 사용자 검색
-      print('사용자 검색: $username');
-      
-      // 먼저 정확히 일치하는 사용자 검색
-      var querySnapshot = await _usersRef
-          .where('nickname', isEqualTo: username)
-          .limit(1)
-          .get();
-      
-      // 정확히 일치하는 사용자가 없으면 시작 부분이 일치하는 사용자 검색
-      if (querySnapshot.docs.isEmpty) {
-        // 시작 부분이 일치하는 사용자 검색 (Firebase는 startsWith를 직접 지원하지 않음)
-        final endOfRange = username + '\uf8ff'; // Unicode 상한값
-        querySnapshot = await _usersRef
-            .where('nickname', isGreaterThanOrEqualTo: username)
-            .where('nickname', isLessThan: endOfRange)
+    
+    // 멘션된 사용자 목록 (중복 제거)
+    final Set<String> mentionedUsernames = {};
+    
+    for (final match in matches) {
+      final username = match.group(1);
+      if (username != null && username.isNotEmpty) {
+        mentionedUsernames.add(username);
+        print('멘션된 사용자: $username');
+      }
+    }
+    
+    for (final username in mentionedUsernames) {
+      try {
+        // 수정된 부분: nickname의 시작 부분이 일치하는 사용자 검색
+        print('사용자 검색: $username');
+        
+        // 먼저 정확히 일치하는 사용자 검색
+        var querySnapshot = await _usersRef
+            .where('nickname', isEqualTo: username)
             .limit(1)
             .get();
-      }
-      
-      if (querySnapshot.docs.isNotEmpty) {
-        final userDoc = querySnapshot.docs.first;
-        final userId = userDoc.id;
-        final foundNickname = (userDoc.data() as Map<String, dynamic>)['nickname'] ?? '';
-        print('사용자 발견: $userId, $foundNickname');
         
-        // 자기 자신을 멘션한 경우 알림을 보내지 않음
-        if (userId == authorId) {
-          print('자신을 멘션함, 알림 생성 안함');
-          continue;
+        // 정확히 일치하는 사용자가 없으면 시작 부분이 일치하는 사용자 검색
+        if (querySnapshot.docs.isEmpty) {
+          // 시작 부분이 일치하는 사용자 검색 (Firebase는 startsWith를 직접 지원하지 않음)
+          final endOfRange = username + '\uf8ff'; // Unicode 상한값
+          querySnapshot = await _usersRef
+              .where('nickname', isGreaterThanOrEqualTo: username)
+              .where('nickname', isLessThan: endOfRange)
+              .limit(1)
+              .get();
         }
         
-        // 알림 생성
-        print('알림 생성 시작: 멘션 알림');
-        final notification = AppNotification(
-          id: '',
-          userId: userId,
-          title: '$authorName님이 회원님을 언급했습니다',
-          content: content.length > 100 ? '${content.substring(0, 97)}...' : content,
-          type: NotificationType.mention,
-          sourceId: sourceId,
-          senderId: authorId,
-          senderName: authorName,
-          senderProfileImage: authorProfileImage,
-          createdAt: Timestamp.now(),
-        );
-        
-        final docRef = await _notificationsRef.add(notification.toMap());
-        print('알림 생성 완료: ${docRef.id}');
-      } else {
-        print('사용자를 찾을 수 없음: $username');
+        if (querySnapshot.docs.isNotEmpty) {
+          final userDoc = querySnapshot.docs.first;
+          final userId = userDoc.id;
+          final foundNickname = (userDoc.data() as Map<String, dynamic>)['nickname'] ?? '';
+          print('사용자 발견: $userId, $foundNickname');
+          
+          // 자기 자신을 멘션한 경우 알림을 보내지 않음
+          if (userId == authorId) {
+            print('자신을 멘션함, 알림 생성 안함');
+            continue;
+          }
+          
+          // 알림 생성
+          print('알림 생성 시작: 멘션 알림');
+          final notification = AppNotification(
+            id: '',
+            userId: userId,
+            title: '$authorName님이 회원님을 언급했습니다',
+            content: content.length > 100 ? '${content.substring(0, 97)}...' : content,
+            type: NotificationType.mention,
+            sourceId: sourceId,
+            senderId: authorId,
+            senderName: authorName,
+            senderProfileImage: authorProfileImage,
+            createdAt: Timestamp.now(),
+          );
+          
+          final docRef = await _notificationsRef.add(notification.toMap());
+          print('알림 생성 완료: ${docRef.id}');
+        } else {
+          print('사용자를 찾을 수 없음: $username');
+        }
+      } catch (e) {
+        print('멘션 처리 오류 (사용자: $username): $e');
       }
-    } catch (e) {
-      print('멘션 처리 오류 (사용자: $username): $e');
     }
   }
-}
-
-  // lib/data/services/notification_service.dart 파일에 추가할 메서드
 
   // 사용자 검색 (멘션용) - 닉네임, 이름, 프로필 정보 포함
-  // 한글 검색을 지원하는 searchUsersByNickname 메서드
   Future<List<Map<String, dynamic>>> searchUsersByNickname(String query) async {
     try {
       if (query.isEmpty) {
@@ -604,5 +647,31 @@ Future<void> processMentions({
       print('사용자 검색 오류: $e');
       return [];
     }
+  }
+  
+  // 웹용 서비스 워커 상태 확인 메서드 (디버깅용)
+  Future<bool> checkServiceWorkerStatus() async {
+    if (!kIsWeb) return false;
+    
+    try {
+      if (js.context.hasProperty('navigator') &&
+          js.context['navigator'].hasProperty('serviceWorker')) {
+        
+        final swRegistration = await js.context['navigator']['serviceWorker']
+            .callMethod('getRegistration', ['/firebase-messaging-sw.js']);
+        
+        if (swRegistration != null) {
+          print('Firebase 메시징 서비스 워커가 등록되어 있습니다.');
+          return true;
+        } else {
+          print('Firebase 메시징 서비스 워커가 등록되지 않았습니다.');
+          return false;
+        }
+      }
+    } catch (e) {
+      print('서비스 워커 상태 확인 오류: $e');
+    }
+    
+    return false;
   }
 }

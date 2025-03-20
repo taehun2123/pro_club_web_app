@@ -3,6 +3,7 @@
 /firebase.json
 /web/firebase-messaging-sw.js
 /web/index.html
+/web/env-config.js
 .env
 # 플랫폼 별 설정파일
 android/key.properties
