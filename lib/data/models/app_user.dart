@@ -14,6 +14,7 @@ class AppUser {
   final String? nickname;
   final int? age;
   final bool profileCompleted;
+  final List<String> fcmTokens; // FCM 토큰 배열 추가
 
   AppUser({
     required this.id,
@@ -27,6 +28,7 @@ class AppUser {
     this.nickname,
     this.age,
     this.profileCompleted = false,
+    this.fcmTokens = const [], // 기본값 빈 배열로 설정
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map) {
@@ -42,6 +44,7 @@ class AppUser {
       nickname: map['nickname'],
       age: map['age'],
       profileCompleted: map['profileCompleted'] ?? false,
+      fcmTokens: List<String>.from(map['fcmTokens'] ?? []),
     );
   }
 
@@ -58,9 +61,9 @@ class AppUser {
       'nickname': nickname,
       'age': age,
       'profileCompleted': profileCompleted,
+      'fcmTokens': fcmTokens,
     };
   }
-
 
   // 사용자 객체 복사본 생성 (필드 업데이트 시 사용)
   AppUser copyWith({

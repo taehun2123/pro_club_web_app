@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_application_1/data/models/notification.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -13,11 +14,8 @@ class NotificationService {
       _firestore.collection('notifications');
   CollectionReference get _usersRef => _firestore.collection('users');
 
-  // FCM 토큰 등록 (모바일 푸시 알림용)
+  // FCM 토큰 등록 (웹 및 모바일 푸시 알림용)
   Future<void> registerFCMToken(String userId) async {
-    // 웹에서는 처리하지 않음
-    if (kIsWeb) return;
-
     try {
       // FCM 권한 요청
       final settings = await _messaging.requestPermission(
@@ -32,8 +30,21 @@ class NotificationService {
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional) {
-        // 토큰 가져오기
-        final token = await _messaging.getToken();
+        // 토큰 가져오기 (웹에서는 VAPID 키 필요)
+        String? token;
+        if (kIsWeb) {
+          // 웹에서 토큰 가져오기 (VAPID 키 필요)
+          final vapidKey = dotenv.env['VAPID_KEY'];
+          token = await _messaging.getToken(
+            vapidKey: vapidKey, // Firebase 콘솔에서 생성한 웹 푸시 인증서 키
+          );
+          print('웹 FCM 토큰: $token');
+        } else {
+          // 모바일에서 토큰 가져오기
+          token = await _messaging.getToken();
+          print('모바일 FCM 토큰: $token');
+        }
+
         if (token != null) {
           // 기존 토큰 목록 확인
           final userDoc = await _usersRef.doc(userId).get();
@@ -59,6 +70,12 @@ class NotificationService {
               'fcmTokens': [token],
             }, SetOptions(merge: true));
           }
+
+          // 웹에서는 토픽 구독 추가
+          if (kIsWeb) {
+            await _messaging.subscribeToTopic('all_notices');
+            print('웹 알림 토픽 구독 성공: all_notices');
+          }
         }
       } else {
         print('FCM 권한 거부됨: ${settings.authorizationStatus}');
@@ -68,16 +85,20 @@ class NotificationService {
     }
   }
 
+
   // FCM 토큰 삭제 (로그아웃 시)
   Future<void> unregisterFCMToken(String userId) async {
-    if (kIsWeb) return;
-
     try {
       final token = await _messaging.getToken();
       if (token != null) {
         await _usersRef.doc(userId).update({
           'fcmTokens': FieldValue.arrayRemove([token]),
         });
+
+        // 토픽 구독 해제 (웹)
+        if (kIsWeb) {
+          await _messaging.unsubscribeFromTopic('all_notices');
+        }
 
         // 토큰 삭제
         await _messaging.deleteToken();
@@ -86,6 +107,8 @@ class NotificationService {
       print('FCM 토큰 삭제 오류: $e');
     }
   }
+
+
 
   // 사용자별 알림 목록 조회
   Stream<List<AppNotification>> getNotificationsStream(String userId) {
@@ -206,6 +229,7 @@ class NotificationService {
   }
 
   // @멘션 알림 생성
+  // 멘션 알림 생성 메서드 수정 - FCM 웹 푸시 알림 추가
   Future<void> createMentionNotification({
     required String mentionedUserId,
     required String mentionerName,
@@ -229,10 +253,12 @@ class NotificationService {
       createdAt: Timestamp.now(),
     );
 
-    await addNotification(notification);
+    final docRef = await addNotification(notification);
+    // Cloud Functions가 알림 문서 생성을 감지하여 푸시 알림을 보냅니다
+    print('멘션 알림 생성 완료 (ID: $docRef). Cloud Functions에서 푸시 알림 처리 예정');
   }
 
-  // 새 공지사항 알림 생성 (모든 사용자에게)
+  // 새 공지사항 알림 생성 메서드 수정 - FCM 웹 푸시 추가
   Future<void> createNewNoticeNotification({
     required String noticeId,
     required String noticeTitle,
@@ -271,6 +297,10 @@ class NotificationService {
       }
 
       await batch.commit();
+      
+      // 여기서 직접 FCM을 호출하지 않습니다.
+      // Cloud Functions에서 자동으로 처리되도록 합니다.
+      print('새 공지사항 알림 생성 완료. Cloud Functions에서 푸시 알림 처리 예정');
     } catch (e) {
       print('공지사항 알림 생성 오류: $e');
       throw e;

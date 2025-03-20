@@ -1,46 +1,87 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="PRO 동아리 애플리케이션">
 
-  <!-- Firebase 관련 스크립트 -->
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js"></script>
-  <!-- 구글 플랫폼 라이브러리 -->
-  <script src="https://apis.google.com/js/platform.js" async defer></script>
-
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
+  <!-- iOS 메타 태그 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="PRO 동아리">
-  <meta name="google-signin-client_id" content="781333412210-11fis1o7css5bl6vcbedfijub660frq3.apps.googleusercontent.com">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
+  <!-- 파비콘 -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>PRO 동아리</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Firebase SDK 추가 (FCM 웹 푸시 알림 지원) -->
+  <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-messaging-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-storage-compat.js"></script>
+
+  <script>
+    // Flutter 웹 렌더러 설정
+    window.flutterWebRenderer = "html";
+    var serviceWorkerVersion = null;
+  </script>
+  
+  <!-- This script adds the flutter initialization JS code -->
+  <script src="flutter.js" defer></script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // 서비스 워커 등록 함수
+    async function registerServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        try {
+          // 플러터 서비스 워커 등록 (Flutter가 생성한 서비스 워커)
+          const flutterServiceWorker = await navigator.serviceWorker.register(
+            '/flutter_service_worker.js?v=' + serviceWorkerVersion
+          );
+          console.log('Flutter 서비스 워커가 등록되었습니다:', flutterServiceWorker.scope);
+          
+          // Firebase 메시징 서비스 워커 등록 (5초 후에 시도 - Flutter SW가 먼저 초기화되도록)
+          setTimeout(async () => {
+            try {
+              const firebaseMessagingServiceWorker = await navigator.serviceWorker.register(
+                '/firebase-messaging-sw.js',
+                { scope: '/' }
+              );
+              console.log('Firebase 메시징 서비스 워커가 등록되었습니다:', firebaseMessagingServiceWorker.scope);
+            } catch (fbError) {
+              console.error('Firebase 메시징 서비스 워커 등록 실패:', fbError);
+            }
+          }, 5000);
+        } catch (error) {
+          console.error('서비스 워커 등록 실패:', error);
+        }
+      } else {
+        console.warn('서비스 워커가 지원되지 않는 브라우저입니다.');
+      }
+    }
+
+    window.addEventListener('load', function(ev) {
+      // Flutter 앱 로드
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+            // Flutter 앱이 로드된 후 서비스 워커 등록
+            registerServiceWorker();
+          });
+        }
+      });
+    });
+  </script>
 </body>
 </html>

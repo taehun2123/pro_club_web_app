@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_application_1/data/models/app_user.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +21,7 @@ import 'package:flutter_application_1/firebase_options.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 // FCM 백그라운드 메시지 핸들러
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   print('백그라운드 메시지 수신: ${message.messageId}');
@@ -27,36 +29,78 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 한국어 날짜 형식 초기화
   await initializeDateFormatting('ko_KR', null);
   Intl.defaultLocale = 'ko_KR';
+  
+  // 환경 변수 로드 전에 디버그 출력
+  print('환경 변수 로드 시작...');
+  
+  // .env 파일 로드
+  await dotenv.load(fileName: ".env");
+  
+  // 환경 변수 로드 확인 (민감한 정보는 일부만 출력)
+  final clientId = dotenv.env['CLIENT_ID'];
+  final vapidKey = dotenv.env['VAPID_KEY'];
+  
+  if (clientId != null && clientId.isNotEmpty) {
+    print('CLIENT_ID 로드 성공: ${clientId.substring(0, min(10, clientId.length))}...');
+  } else {
+    print('경고: CLIENT_ID가 설정되지 않았습니다!');
+  }
+  
+  if (vapidKey != null && vapidKey.isNotEmpty) {
+    print('VAPID_KEY 로드 성공: ${vapidKey.substring(0, min(5, vapidKey.length))}...');
+  } else {
+    print('경고: VAPID_KEY가 설정되지 않았습니다!');
+  }
+  
+  // Firebase 초기화
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // FCM 설정 (모바일 앱에서만)
-  if (!kIsWeb) {
-    // 백그라운드 메시지 핸들러 등록
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    
-    // FCM 권한 요청
-    final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-    
-    // FCM 토큰 출력 (디버깅용)
-    final token = await messaging.getToken();
-    print('FCM Token: $token');
+  // FCM 설정
+  try {
+    // 모바일 환경
+    if (!kIsWeb) {
+      // 백그라운드 메시지 핸들러 등록
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      
+      // FCM 권한 요청
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+      
+      print('FCM 권한 상태: ${settings.authorizationStatus}');
+      
+      // FCM 토큰 출력 (디버깅용)
+      final token = await messaging.getToken();
+      print('FCM 토큰 발급 성공: ${token?.substring(0, min(10, token?.length ?? 0))}...');
+    } 
+    // 웹 환경
+    else {
+      print('웹 환경에서 FCM 초기화 시작...');
+      final authService = AuthService();
+      await authService.initWebFCM();
+    }
+  } catch (e) {
+    print('FCM 초기화 오류: $e');
   }
   
   runApp(const MyApp());
 }
+
+// min 함수 구현 (String 길이 체크용)
+int min(int a, int b) => a < b ? a : b;
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -67,6 +111,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        Provider<AuthService>(create: (_) => AuthService()),
       ],
       child: MaterialApp(
         title: 'PRO 동아리',
@@ -83,7 +128,7 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
+    final authService = Provider.of<AuthService>(context, listen: false);
     
     return StreamBuilder<User?>(
       stream: authService.authStateChanges,
@@ -121,9 +166,14 @@ class AuthWrapper extends StatelessWidget {
                 final userProvider = Provider.of<UserProvider>(context, listen: false);
                 userProvider.setUser(appUser);
                 
-                // 알림 제공자 초기화 - 수정된 부분
+                // 알림 제공자 초기화
                 final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
                 notificationProvider.initialize(appUser.id);
+                
+                // FCM 토큰 업데이트 (추가된 부분)
+                if (kIsWeb) {
+                  authService.initWebFCM();
+                }
               });
               
               if (appUser.profileCompleted) {
@@ -155,11 +205,12 @@ class AuthWrapper extends StatelessWidget {
                       role: 'member',
                       createdAt: Timestamp.now(),
                       profileCompleted: false,
+                      fcmTokens: [], // FCM 토큰 배열 명시적 초기화 (추가된 부분)
                     );
                     
                     Provider.of<UserProvider>(context, listen: false).setUser(newUser);
                     
-                    // 알림 제공자 초기화 - 수정된 부분
+                    // 알림 제공자 초기화
                     final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
                     notificationProvider.initialize(newUser.id);
                   });
