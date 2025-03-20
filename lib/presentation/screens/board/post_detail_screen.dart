@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/presentation/widgets/comment_input_with_mention.dart';
+import 'package:flutter_application_1/presentation/widgets/mention_highlight_text.dart';
 import 'package:flutter_application_1/presentation/widgets/user_profile_popup.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_1/core/theme/app_colors.dart';
@@ -10,7 +11,6 @@ import 'package:flutter_application_1/data/services/post_service.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/screens/board/post_form_screen.dart';
 import 'package:intl/intl.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PostDetailScreen extends StatefulWidget {
@@ -30,7 +30,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Post? _post;
   Map<String, List<Comment>> _groupedComments = {};
   bool _isLoading = true;
-  bool _isCommentLoading = false;
   bool _isLikeLoading = false;
 
   // 댓글 입력 관련 상태
@@ -104,9 +103,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       return;
     }
 
-    setState(() {
-      _isCommentLoading = true;
-    });
+    setState(() {});
 
     try {
       // 멘션된 사용자 ID 가져오기
@@ -154,14 +151,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         setState(() {
           _groupedComments = groupedComments;
           _post = updatedPost;
-          _isCommentLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isCommentLoading = false;
-        });
+        setState(() {});
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('댓글 작성 중 오류가 발생했습니다: $e')));
@@ -299,77 +293,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       _mentionedUserName = null;
       _commentController.clear();
     });
-  }
-
-  Future<void> _addComment() async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final user = userProvider.user;
-
-    if (user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('댓글을 작성하려면 로그인이 필요합니다.')));
-      return;
-    }
-
-    final commentText = _commentController.text.trim();
-    if (commentText.isEmpty) {
-      return;
-    }
-
-    setState(() {
-      _isCommentLoading = true;
-    });
-
-    try {
-      // 댓글 또는 답글 생성
-      final comment = Comment(
-        id: '',
-        postId: widget.postId,
-        content: commentText,
-        authorId: user.id,
-        authorName: user.name,
-        authorProfileImage: user.profileImage,
-        createdAt: Timestamp.now(),
-        parentId: _replyToCommentId, // 답글인 경우 부모 댓글 ID 설정
-        mentionedUserId: _mentionedUserId, // 멘션된 사용자 ID 설정
-        mentionedUserName: _mentionedUserName, // 멘션된 사용자 이름 설정
-      );
-
-      await _postService.addComment(comment);
-      _commentController.clear();
-
-      // 답글 모드 초기화
-      setState(() {
-        _replyToCommentId = null;
-        _replyToUserName = null;
-        _mentionedUserId = null;
-        _mentionedUserName = null;
-      });
-
-      // 댓글 및 게시글 다시 로드
-      final groupedComments = await _postService.getGroupedCommentsByPostId(
-        widget.postId,
-      );
-      final updatedPost = await _postService.getPostById(widget.postId);
-
-      if (mounted) {
-        setState(() {
-          _groupedComments = groupedComments;
-          _post = updatedPost;
-          _isCommentLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isCommentLoading = false;
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('댓글 작성 중 오류가 발생했습니다: $e')));
-      }
-    }
   }
 
   Future<void> _deleteComment(Comment comment) async {
@@ -637,7 +560,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
                           const SizedBox(height: 24),
 
-                          // 좋아요 버튼 (싫어요 버튼 제거)
+                          // 좋아요 버튼
                           Center(
                             child: OutlinedButton.icon(
                               onPressed: _isLikeLoading ? null : _toggleLike,
@@ -884,11 +807,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
 
           // 댓글 내용
+          // 댓글 내용 - 여기를 MentionHighlightText 위젯으로 교체
           Padding(
             padding: const EdgeInsets.only(left: 40, top: 8),
-            child: Text(
-              comment.content,
-              style: const TextStyle(fontSize: 14, height: 1.4),
+            child: MentionHighlightText(
+              text: comment.content,
+              defaultStyle: const TextStyle(fontSize: 14, height: 1.4),
+              mentionStyle: const TextStyle(
+                fontSize: 14,
+                height: 1.4,
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],

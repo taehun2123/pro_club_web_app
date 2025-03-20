@@ -6,7 +6,6 @@ import 'package:flutter_application_1/presentation/providers/notification_provid
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/screens/board/post_detail_screen.dart';
 import 'package:flutter_application_1/presentation/screens/notice/notice_detail_screen.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 
 class NotificationScreen extends StatefulWidget {
@@ -102,8 +101,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         iconColor = Colors.red;
         break;
       case NotificationType.adminMessage:
-      default:
-        iconData = Icons.campaign;
+      iconData = Icons.campaign;
         iconColor = Colors.orange;
         break;
     }

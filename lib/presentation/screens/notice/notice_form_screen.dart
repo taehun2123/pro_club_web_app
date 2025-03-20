@@ -9,13 +9,11 @@ import 'package:flutter_application_1/data/services/notice_service.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/widgets/custom_button.dart';
 import 'package:flutter_application_1/presentation/widgets/custom_text_field.dart';
+
 class NoticeFormScreen extends StatefulWidget {
   final Notice? notice;
 
-  const NoticeFormScreen({
-    Key? key,
-    this.notice,
-  }) : super(key: key);
+  const NoticeFormScreen({Key? key, this.notice}) : super(key: key);
 
   @override
   _NoticeFormScreenState createState() => _NoticeFormScreenState();
@@ -26,7 +24,7 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final NoticeService _noticeService = NoticeService();
-  
+
   bool _isImportant = false;
   bool _isLoading = false;
 
@@ -59,14 +57,14 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final user = userProvider.user;
-      
+
       if (user == null) {
         throw Exception('사용자 정보를 찾을 수 없습니다.');
       }
 
       final title = _titleController.text.trim();
       final content = _contentController.text.trim();
-      
+
       if (widget.notice == null) {
         // 새 공지사항 작성
         final newNotice = Notice(
@@ -78,14 +76,14 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
           createdAt: Timestamp.now(),
           important: _isImportant,
         );
-        
+
         await _noticeService.addNotice(newNotice);
-        
+
         if (mounted) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('공지사항이 작성되었습니다.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('공지사항이 작성되었습니다.')));
         }
       } else {
         // 공지사항 수정
@@ -99,20 +97,24 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
           updatedAt: Timestamp.now(),
           important: _isImportant,
         );
-        
+
         await _noticeService.updateNotice(updatedNotice);
-        
+
         if (mounted) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('공지사항이 수정되었습니다.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('공지사항이 수정되었습니다.')));
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('공지사항 ${widget.notice == null ? '작성' : '수정'} 중 오류가 발생했습니다: $e')),
+          SnackBar(
+            content: Text(
+              '공지사항 ${widget.notice == null ? '작성' : '수정'} 중 오류가 발생했습니다: $e',
+            ),
+          ),
         );
       }
     } finally {
@@ -164,7 +166,7 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // 제목 입력
                     CustomTextField(
                       controller: _titleController,
@@ -178,13 +180,15 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // 내용 입력
                     CustomTextField(
                       controller: _contentController,
                       label: '내용',
                       hintText: '내용을 입력하세요',
-                      maxLines: 15,
+                      maxLines: 20, // 더 많은 줄 수 허용
+                      keyboardType: TextInputType.multiline, // 다중 줄 키보드 타입 설정
+                      textInputAction: TextInputAction.newline, // 엔터키를 줄바꿈으로 처리
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return '내용을 입력해주세요.';
@@ -192,11 +196,12 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
-            
+
             // 저장 버튼
             Padding(
               padding: const EdgeInsets.all(16),

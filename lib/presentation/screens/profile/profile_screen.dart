@@ -11,7 +11,6 @@ import 'package:flutter_application_1/presentation/providers/user_provider.dart'
 import 'package:flutter_application_1/presentation/screens/auth/login_screen.dart';
 import 'package:flutter_application_1/presentation/screens/board/post_detail_screen.dart';
 import 'package:flutter_application_1/presentation/widgets/custom_text_field.dart';
-import 'package:flutter_application_1/presentation/widgets/custom_button.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -27,7 +26,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   final AuthService _authService = AuthService();
-  final PostService _postService = PostService();
   final ImagePicker _imagePicker = ImagePicker();
 
   late TabController _tabController;
@@ -395,7 +393,6 @@ class EditNicknameDialog extends StatefulWidget {
 class _EditNicknameDialogState extends State<EditNicknameDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
-  bool _isNicknameAvailable = true;
   String? _errorMessage;
   
   @override
@@ -422,7 +419,6 @@ class _EditNicknameDialogState extends State<EditNicknameDialog> {
                 if (_errorMessage != null) {
                   setState(() {
                     _errorMessage = null;
-                    _isNicknameAvailable = true;
                   });
                 }
               },
@@ -519,7 +515,6 @@ class _EditNicknameDialogState extends State<EditNicknameDialog> {
           // 이미 사용 중인 닉네임
           setState(() {
             _isLoading = false;
-            _isNicknameAvailable = false;
             _errorMessage = '이미 사용 중인 별명입니다';
           });
           return;

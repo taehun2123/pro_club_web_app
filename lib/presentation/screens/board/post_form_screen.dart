@@ -8,7 +8,6 @@ import 'package:flutter_application_1/data/services/post_service.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/widgets/custom_button.dart';
 import 'package:flutter_application_1/presentation/widgets/custom_text_field.dart';
-import 'package:flutter_application_1/core/theme/app_colors.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 

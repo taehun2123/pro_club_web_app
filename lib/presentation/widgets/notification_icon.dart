@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_application_1/core/theme/app_colors.dart';
 import 'package:flutter_application_1/presentation/providers/notification_provider.dart';
 import 'package:flutter_application_1/presentation/screens/notification/notification_screen.dart';
 
