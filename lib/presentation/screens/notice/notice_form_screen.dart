@@ -9,6 +9,9 @@ import 'package:flutter_application_1/data/services/notice_service.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/widgets/custom_button.dart';
 import 'package:flutter_application_1/presentation/widgets/custom_text_field.dart';
+import 'package:file_picker/file_picker.dart'; // 파일 선택 패키지 추가 필요
+import 'package:flutter/foundation.dart' show Uint8List, kIsWeb;
+import 'dart:io';
 
 class NoticeFormScreen extends StatefulWidget {
   final Notice? notice;
@@ -28,6 +31,13 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
   bool _isImportant = false;
   bool _isLoading = false;
 
+  // 첨부 파일 관련 변수 추가
+  List<String> _existingAttachments = [];
+  List<String> _attachmentsToDelete = [];
+  List<File> _newAttachments = [];
+  List<PlatformFile> _webAttachmentFiles = [];
+  List<Uint8List> _webAttachmentData = [];
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +45,9 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
       _titleController.text = widget.notice!.title;
       _contentController.text = widget.notice!.content;
       _isImportant = widget.notice!.important;
+      _existingAttachments = List<String>.from(
+        widget.notice!.attachments ?? [],
+      );
     }
   }
 
@@ -43,6 +56,64 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();
+  }
+
+  // 파일 선택 메서드 추가
+  Future<void> _pickFiles() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: true,
+        withData: kIsWeb, // 웹에서 바이너리 데이터 가져오기
+      );
+
+      if (result != null) {
+        if (kIsWeb) {
+          // 웹 환경
+          setState(() {
+            for (var file in result.files) {
+              if (file.bytes != null) {
+                _webAttachmentFiles.add(file);
+                _webAttachmentData.add(file.bytes!);
+              }
+            }
+          });
+        } else {
+          // 모바일 환경
+          setState(() {
+            for (var file in result.files) {
+              if (file.path != null) {
+                _newAttachments.add(File(file.path!));
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('파일 선택 중 오류가 발생했습니다: $e')));
+    }
+  }
+
+  // 기존 첨부 파일 삭제
+  void _removeExistingAttachment(String fileUrl) {
+    setState(() {
+      _existingAttachments.remove(fileUrl);
+      _attachmentsToDelete.add(fileUrl);
+    });
+  }
+
+  // 새 첨부 파일 삭제
+  void _removeNewAttachment(int index) {
+    setState(() {
+      if (kIsWeb) {
+        _webAttachmentFiles.removeAt(index);
+        _webAttachmentData.removeAt(index);
+      } else {
+        _newAttachments.removeAt(index);
+      }
+    });
   }
 
   Future<void> _submitForm() async {
@@ -75,9 +146,14 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
           authorName: user.name,
           createdAt: Timestamp.now(),
           important: _isImportant,
+          attachments: [],
         );
 
-        await _noticeService.addNotice(newNotice);
+        await _noticeService.addNotice(
+          newNotice,
+          _newAttachments,
+          webAttachments: kIsWeb ? _webAttachmentData : null,
+        );
 
         if (mounted) {
           Navigator.pop(context);
@@ -96,9 +172,15 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
           createdAt: widget.notice!.createdAt,
           updatedAt: Timestamp.now(),
           important: _isImportant,
+          attachments: _existingAttachments,
         );
 
-        await _noticeService.updateNotice(updatedNotice);
+        await _noticeService.updateNotice(
+          updatedNotice,
+          _newAttachments,
+          _attachmentsToDelete,
+          webAttachments: kIsWeb ? _webAttachmentData : null,
+        );
 
         if (mounted) {
           Navigator.pop(context);
@@ -197,6 +279,70 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
                       },
                     ),
                     const SizedBox(height: 24),
+
+                    // 첨부 파일 섹션
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '첨부 파일',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.attach_file),
+                          label: const Text('파일 추가'),
+                          onPressed: _pickFiles,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // 기존 첨부 파일 목록
+                    if (_existingAttachments.isNotEmpty) ...[
+                      const Text(
+                        '기존 첨부 파일',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      for (final fileUrl in _existingAttachments)
+                        _buildAttachmentItem(
+                          fileUrl.split('/').last,
+                          onDelete: () => _removeExistingAttachment(fileUrl),
+                        ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // 새 첨부 파일 목록
+                    if (kIsWeb
+                        ? _webAttachmentFiles.isNotEmpty
+                        : _newAttachments.isNotEmpty) ...[
+                      const Text(
+                        '새 첨부 파일',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (kIsWeb)
+                        for (int i = 0; i < _webAttachmentFiles.length; i++)
+                          _buildAttachmentItem(
+                            _webAttachmentFiles[i].name,
+                            onDelete: () => _removeNewAttachment(i),
+                          ),
+                      if (!kIsWeb)
+                        for (int i = 0; i < _newAttachments.length; i++)
+                          _buildAttachmentItem(
+                            _newAttachments[i].path.split('/').last,
+                            onDelete: () => _removeNewAttachment(i),
+                          ),
+                    ],
                   ],
                 ),
               ),
@@ -215,5 +361,79 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
         ),
       ),
     );
+  }
+
+  // 첨부 파일 아이템 위젯
+  Widget _buildAttachmentItem(
+    String fileName, {
+    required VoidCallback onDelete,
+  }) {
+    return ListTile(
+      leading: Icon(_getFileIcon(fileName), color: _getFileIconColor(fileName)),
+      title: Text(fileName, style: const TextStyle(fontSize: 14)),
+      trailing: IconButton(
+        icon: const Icon(Icons.delete_outline),
+        onPressed: onDelete,
+        color: Colors.red,
+      ),
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+    );
+  }
+
+  // 파일 확장자에 따른 아이콘 선택
+  IconData _getFileIcon(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+
+    switch (extension) {
+      case 'apk':
+        return Icons.android;
+      case 'ipa':
+      case 'ios':
+        return Icons.apple;
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Icons.image;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  // 파일 확장자에 따른 아이콘 색상
+  Color _getFileIconColor(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+
+    switch (extension) {
+      case 'apk':
+        return Colors.green;
+      case 'ipa':
+      case 'ios':
+        return Colors.grey;
+      case 'pdf':
+        return Colors.red;
+      case 'doc':
+      case 'docx':
+        return Colors.blue;
+      case 'xls':
+      case 'xlsx':
+        return Colors.green;
+      case 'ppt':
+      case 'pptx':
+        return Colors.orange;
+      default:
+        return Colors.blueGrey;
+    }
   }
 }

@@ -11,6 +11,7 @@ class Notice {
   final Timestamp createdAt;
   final Timestamp? updatedAt;
   final bool important;
+  final List<String>? attachments; // 첨부 파일 URL 목록 추가
 
   Notice({
     required this.id,
@@ -21,6 +22,7 @@ class Notice {
     required this.createdAt,
     this.updatedAt,
     this.important = false,
+    this.attachments,
   });
 
   factory Notice.fromMap(Map<String, dynamic> map, String docId) {
@@ -33,6 +35,10 @@ class Notice {
       createdAt: map['createdAt'] ?? Timestamp.now(),
       updatedAt: map['updatedAt'],
       important: map['important'] ?? false,
+      attachments:
+          map['attachments'] != null
+              ? List<String>.from(map['attachments'])
+              : null,
     );
   }
 
@@ -45,6 +51,7 @@ class Notice {
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'important': important,
+      'attachments': attachments,
     };
   }
 
@@ -58,6 +65,7 @@ class Notice {
     Timestamp? createdAt,
     Timestamp? updatedAt,
     bool? important,
+    List<String>? attachments, // 첨부 파일 목록 추가
   }) {
     return Notice(
       id: id ?? this.id,
@@ -68,6 +76,7 @@ class Notice {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       important: important ?? this.important,
+      attachments: attachments ?? this.attachments,
     );
   }
 }

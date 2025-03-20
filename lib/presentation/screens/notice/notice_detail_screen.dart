@@ -1,3 +1,5 @@
+// lib/presentation/screens/notice/notice_detail_screen.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/presentation/widgets/user_profile_popup.dart';
@@ -8,6 +10,7 @@ import 'package:flutter_application_1/data/services/notice_service.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/screens/notice/notice_form_screen.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart'; // URL 실행을 위한 패키지 추가 필요
 
 class NoticeDetailScreen extends StatefulWidget {
   final String noticeId;
@@ -94,6 +97,84 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
           );
         }
       }
+    }
+  }
+  
+  // 첨부 파일 열기
+  Future<void> _openAttachment(String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('파일을 열 수 없습니다.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('파일 열기 중 오류가 발생했습니다: $e')),
+        );
+      }
+    }
+  }
+  
+  // 파일 확장자에 따른 아이콘 선택
+  IconData _getFileIcon(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+    
+    switch (extension) {
+      case 'apk':
+        return Icons.android;
+      case 'ipa':
+      case 'ios':
+        return Icons.apple;
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Icons.image;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+  
+  // 파일 확장자에 따른 아이콘 색상
+  Color _getFileIconColor(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+    
+    switch (extension) {
+      case 'apk':
+        return Colors.green;
+      case 'ipa':
+      case 'ios':
+        return Colors.grey;
+      case 'pdf':
+        return Colors.red;
+      case 'doc':
+      case 'docx':
+        return Colors.blue;
+      case 'xls':
+      case 'xlsx':
+        return Colors.green;
+      case 'ppt':
+      case 'pptx':
+        return Colors.orange;
+      default:
+        return Colors.blueGrey;
     }
   }
 
@@ -257,9 +338,86 @@ class _NoticeDetailScreenState extends State<NoticeDetailScreen> {
                           height: 1.6,
                         ),
                       ),
+                      
+                      // 첨부 파일 섹션 추가
+                      if (_notice!.attachments != null && _notice!.attachments!.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        const Text(
+                          '첨부 파일',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        for (final attachmentUrl in _notice!.attachments!)
+                          Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: Icon(
+                                _getFileIcon(attachmentUrl.split('/').last),
+                                color: _getFileIconColor(attachmentUrl.split('/').last),
+                                size: 36,
+                              ),
+                              title: Text(
+                                attachmentUrl.split('/').last,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              subtitle: _getFileTypeText(attachmentUrl.split('/').last),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.download),
+                                color: AppColors.primary,
+                                onPressed: () => _openAttachment(attachmentUrl),
+                              ),
+                              onTap: () => _openAttachment(attachmentUrl),
+                            ),
+                          ),
+                      ],
                     ],
                   ),
                 ),
     );
+  }
+  
+  // 파일 유형 설명 위젯
+  Widget _getFileTypeText(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+    String description;
+    
+    switch (extension) {
+      case 'apk':
+        description = 'Android 앱 설치 파일';
+        break;
+      case 'ipa':
+        description = 'iOS 앱 설치 파일';
+        break;
+      case 'pdf':
+        description = 'PDF 문서';
+        break;
+      case 'doc':
+      case 'docx':
+        description = 'Word 문서';
+        break;
+      case 'xls':
+      case 'xlsx':
+        description = 'Excel 스프레드시트';
+        break;
+      case 'ppt':
+      case 'pptx':
+        description = 'PowerPoint 프레젠테이션';
+        break;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        description = '이미지 파일';
+        break;
+      default:
+        description = '파일';
+        break;
+    }
+    
+    return Text(description);
   }
 }
