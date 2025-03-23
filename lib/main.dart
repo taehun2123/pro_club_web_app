@@ -114,7 +114,7 @@ class MyApp extends StatelessWidget {
         Provider<AuthService>(create: (_) => AuthService()),
       ],
       child: MaterialApp(
-        title: 'PRO 동아리',
+        title: 'PRO X Goorm',
         theme: AppTheme.lightTheme,
         debugShowCheckedModeBanner: false,
         home: const AuthWrapper(),

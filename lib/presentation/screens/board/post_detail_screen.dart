@@ -208,6 +208,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   // 태그 색상 가져오기
   Color _getTagColor(String tag) {
     switch (tag) {
+      case '구름톤':
+        return Colors.lightBlueAccent;
       case '스터디':
         return Colors.blue;
       case '프로젝트':

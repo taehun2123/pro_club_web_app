@@ -27,7 +27,7 @@ class _BoardListScreenState extends State<BoardListScreen> {
   String _searchQuery = '';
   
   // 태그 필터링 관련 변수
-  final List<String> _tagOptions = ['전체', '스터디', '프로젝트', '자유', '질의응답', '활동', '자격증', '기타'];
+  final List<String> _tagOptions = ['전체', '구름톤','스터디', '프로젝트', '자유', '질의응답', '활동', '자격증', '기타'];
   String _selectedTagFilter = '전체';
 
   @override
@@ -102,6 +102,8 @@ class _BoardListScreenState extends State<BoardListScreen> {
   // 태그 색상 가져오기
   Color _getTagColor(String tag) {
     switch (tag) {
+      case '구름톤':
+        return Colors.lightBlueAccent;
       case '스터디':
         return Colors.blue;
       case '프로젝트':

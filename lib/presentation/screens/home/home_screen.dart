@@ -318,6 +318,8 @@ class _HomeTabState extends State<HomeTab> {
   // 태그 색상 가져오기
   Color _getTagColor(String tag) {
     switch (tag) {
+      case '구름톤':
+        return Colors.lightBlueAccent;
       case '스터디':
         return Colors.blue;
       case '프로젝트':
@@ -370,7 +372,7 @@ class _HomeTabState extends State<HomeTab> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '오늘도 PRO 동아리와 함께하세요!',
+                        '오늘도 PRO X Goorm 과 함께하세요!',
                         style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                       ),
                     ],

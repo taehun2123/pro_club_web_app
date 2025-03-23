@@ -35,6 +35,7 @@ class _PostFormScreenState extends State<PostFormScreen> {
 
   // 태그 관련 변수
   final List<String> _tagOptions = [
+    '구름톤',
     '스터디',
     '프로젝트',
     '자유',
@@ -116,6 +117,8 @@ class _PostFormScreenState extends State<PostFormScreen> {
   // 태그별 색상 반환
   Color _getTagColor(String tag) {
     switch (tag) {
+      case '구름톤':
+        return Colors.lightBlueAccent;
       case '스터디':
         return Colors.blue;
       case '프로젝트':

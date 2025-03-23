@@ -86,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // 로고
                   Center(
                     child: Image.asset(
-                      'assets/images/robot.png',
+                      'assets/images/prorobot.png',
                       width: 200,
                       height: 200,
                     ),
