@@ -1,38 +1,115 @@
-// lib/utils/image_utils.dart
+// lib/core/utils/image_utils.dart
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
+import 'package:uuid/uuid.dart';
+import 'package:http/http.dart' as http;
 
 class ImageUtils {
-  // Firebase Storage URL 처리 함수
-  static String getProxiedImageUrl(String originalUrl) {
-    // 빈 URL 처리
-    if (originalUrl.isEmpty) return '';
-    
+  // 이미지를 선택하고 압축하는 메서드
+  static Future<Map<String, dynamic>?> pickAndOptimizeImage({
+    required ImageSource source,
+    int maxWidth = 1920,
+    int maxHeight = 1080,
+    int quality = 85,
+  }) async {
     try {
-      // URL 파싱
-      final uri = Uri.parse(originalUrl);
+      final ImagePicker picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: maxWidth.toDouble(),
+        maxHeight: maxHeight.toDouble(),
+      );
       
-      // Firebase Storage URL 확인
-      if (uri.host.contains('firebasestorage.googleapis.com')) {
-        // 기본 URL 구조에서 버킷과 객체 경로 추출
-        final pathParts = uri.path.split('/o/');
-        if (pathParts.length > 1) {
-          // 객체 경로 디코딩
-          final objectPath = Uri.decodeComponent(pathParts[1]);
-          
-          // 프로젝트 ID 확인 (URL에서 추출)
-          final bucketName = uri.path.contains('proclub-cdd37') 
-              ? 'proclub-cdd37' 
-              : 'your-firebase-project-id';
-          
-          // 토큰 없는 간단한 URL 구조로 반환
-          return 'https://firebasestorage.googleapis.com/v0/b/$bucketName/o/$objectPath?alt=media';
-        }
+      if (pickedFile == null) {
+        return null;
       }
       
-      // 이미 정상 URL이면 그대로 반환
-      return originalUrl;
+      final String originalFilename = path.basename(pickedFile.path);
+      final String extension = path.extension(originalFilename).toLowerCase();
+      final uuid = const Uuid().v4();
+      final String filename = '$uuid$extension';
+      
+      Uint8List compressedData;
+      
+      if (kIsWeb) {
+        // 웹에서는 XFile에서 바로 바이트를 읽고 압축
+        final bytes = await pickedFile.readAsBytes();
+        compressedData = await FlutterImageCompress.compressWithList(
+          bytes,
+          quality: quality,
+          minWidth: 100, // 최소 너비 (썸네일 품질 보장)
+          minHeight: 100, // 최소 높이
+        );
+      } else {
+        // 모바일에서는 파일 경로 사용
+        compressedData = await FlutterImageCompress.compressWithFile(
+          pickedFile.path,
+          quality: quality,
+          minWidth: 100,
+          minHeight: 100,
+        ) ?? Uint8List(0);
+      }
+      
+      return {
+        'filename': filename,
+        'data': compressedData,
+        'mimeType': 'image/jpeg',
+      };
     } catch (e) {
-      print('URL 처리 오류: $e, 원본 URL: $originalUrl');
-      return originalUrl;
+      print('이미지 처리 오류: $e');
+      return null;
+    }
+  }
+  
+  // 썸네일 생성
+  static Future<Uint8List?> generateThumbnail(Uint8List imageData, {
+    int width = 300,
+    int height = 300,
+    int quality = 70,
+  }) async {
+    try {
+      return await FlutterImageCompress.compressWithList(
+        imageData,
+        minWidth: width,
+        minHeight: height,
+        quality: quality,
+      );
+    } catch (e) {
+      print('썸네일 생성 오류: $e');
+      return null;
+    }
+  }
+  
+  // Firebase Storage URL 정리 (쿼리 파라미터 제거)
+  static String cleanFirebaseUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      
+      // 토큰 파라미터가 있는 경우 제거
+      if (uri.queryParameters.containsKey('token')) {
+        final newParams = Map<String, String>.from(uri.queryParameters)
+          ..remove('token');
+        
+        return uri.replace(queryParameters: newParams).toString();
+      }
+      
+      return url;
+    } catch (e) {
+      return url;
+    }
+  }
+  
+  // 이미지 URL이 유효한지 확인
+  static Future<bool> isImageUrlValid(String url) async {
+    try {
+      final response = await http.head(Uri.parse(url));
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (e) {
+      return false;
     }
   }
 }

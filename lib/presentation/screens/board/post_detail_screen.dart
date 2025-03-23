@@ -12,6 +12,7 @@ import 'package:flutter_application_1/presentation/providers/user_provider.dart'
 import 'package:flutter_application_1/presentation/screens/board/post_form_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_application_1/presentation/widgets/rich_content_display.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final String postId;
@@ -527,11 +528,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           const Divider(height: 32),
 
                           // 내용
-                          Text(
-                            _post!.content,
-                            style: const TextStyle(fontSize: 16, height: 1.5),
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.symmetric(vertical: 16),
+                            child: RichContentDisplay(content: _post!.content),
                           ),
-
                           // 첨부 파일
                           if (_post!.attachments != null &&
                               _post!.attachments!.isNotEmpty) ...[

@@ -1,15 +1,17 @@
 // lib/presentation/screens/board/post_form_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_application_1/core/theme/app_colors.dart';
 import 'package:flutter_application_1/data/models/post.dart';
+import 'package:flutter_application_1/data/models/rich_content.dart';
 import 'package:flutter_application_1/data/services/post_service.dart';
+import 'package:flutter_application_1/data/services/storage_service.dart';
 import 'package:flutter_application_1/presentation/providers/user_provider.dart';
 import 'package:flutter_application_1/presentation/widgets/custom_button.dart';
 import 'package:flutter_application_1/presentation/widgets/custom_text_field.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'package:flutter_application_1/presentation/widgets/enhanced_rich_text_editor.dart';
+import 'package:uuid/uuid.dart';
 
 class PostFormScreen extends StatefulWidget {
   final Post? post;
@@ -23,14 +25,12 @@ class PostFormScreen extends StatefulWidget {
 class _PostFormScreenState extends State<PostFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  final _contentController = TextEditingController();
   final _customTagController = TextEditingController();
   final PostService _postService = PostService();
-  final ImagePicker _imagePicker = ImagePicker();
-
-  List<String> _existingAttachments = [];
-  List<String> _attachmentsToDelete = [];
-  List<File> _newAttachments = [];
+  final StorageService _storageService = StorageService();
+  
+  String _quillContent = '';
+  String _storagePath = ''; // 이미지 저장 경로
   bool _isLoading = false;
 
   // 태그 관련 변수
@@ -48,59 +48,34 @@ class _PostFormScreenState extends State<PostFormScreen> {
   bool _showCustomTagField = false;
 
   @override
-  void dispose() {
-    _titleController.dispose();
-    _contentController.dispose();
-    _customTagController.dispose();
-    super.dispose();
-  }
-
-  @override
   void initState() {
     super.initState();
+    
+    // 제목 초기화
     if (widget.post != null) {
       _titleController.text = widget.post!.title;
-      _contentController.text = widget.post!.content;
-      _existingAttachments = List<String>.from(widget.post!.attachments ?? []);
-
+      _quillContent = widget.post!.content;
+      _storagePath = 'posts/${widget.post!.id}';
+      
       // 태그 정보 초기화
       _selectedTag = widget.post!.tag;
       if (_selectedTag == '기타' && widget.post!.customTag != null) {
         _customTagController.text = widget.post!.customTag!;
         _showCustomTagField = true;
       }
+    } else {
+      // 새 게시글인 경우 임시 ID 생성
+      final tempId = const Uuid().v4();
+      _storagePath = 'posts/$tempId';
+      _quillContent = RichContent.empty().jsonContent;
     }
   }
-
-  Future<void> _pickFile() async {
-    try {
-      final pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-      );
-
-      if (pickedFile != null) {
-        setState(() {
-          _newAttachments.add(File(pickedFile.path));
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('파일 선택 중 오류가 발생했습니다: $e')));
-    }
-  }
-
-  void _removeExistingAttachment(String fileUrl) {
-    setState(() {
-      _existingAttachments.remove(fileUrl);
-      _attachmentsToDelete.add(fileUrl);
-    });
-  }
-
-  void _removeNewAttachment(int index) {
-    setState(() {
-      _newAttachments.removeAt(index);
-    });
+  
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _customTagController.dispose();
+    super.dispose();
   }
 
   // 태그 선택 처리
@@ -135,6 +110,108 @@ class _PostFormScreenState extends State<PostFormScreen> {
         return Colors.grey;
       default:
         return Colors.blue;
+    }
+  }
+
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    
+    if (_quillContent.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('내용을 입력해주세요.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final user = userProvider.user;
+      
+      if (user == null) {
+        throw Exception('로그인 상태를 확인할 수 없습니다.');
+      }
+
+      final title = _titleController.text.trim();
+      final customTag = _selectedTag == '기타' ? _customTagController.text.trim() : null;
+      final richContent = RichContent(jsonContent: _quillContent);
+      
+      if (widget.post == null) {
+        // 새 게시글 작성
+        final newPost = Post.withRichContent(
+          id: '', // Firestore에서 자동 생성
+          title: title,
+          richContent: richContent,
+          authorId: user.id,
+          authorName: user.name,
+          authorProfileImage: user.profileImage,
+          createdAt: Timestamp.now(),
+          tag: _selectedTag,
+          customTag: customTag,
+        );
+        
+        final postId = await _postService.addPost(newPost, []);
+        
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('게시글이 작성되었습니다.')),
+          );
+        }
+      } else {
+        // 게시글 수정
+        // 기존 이미지와 새 콘텐츠의 이미지 비교하여 삭제된 이미지 처리
+        final oldContent = widget.post!.richContent;
+        final oldImageUrls = oldContent.allImageUrls;
+        final newImageUrls = richContent.allImageUrls;
+        
+        // 삭제된 이미지 찾기
+        final removedImages = oldImageUrls.where(
+          (url) => !newImageUrls.contains(url)
+        ).toList();
+        
+        // 삭제된 이미지들 Storage에서 제거
+        for (final imageUrl in removedImages) {
+          await _storageService.deleteImage(imageUrl);
+        }
+        
+        // 게시글 업데이트
+        final updatedPost = widget.post!.copyWith(
+          title: title,
+          content: _quillContent,
+          updatedAt: Timestamp.now(),
+          tag: _selectedTag,
+          customTag: customTag,
+        );
+        
+        await _postService.updatePost(updatedPost, [], []);
+        
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('게시글이 수정되었습니다.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('게시글 ${widget.post == null ? '작성' : '수정'} 중 오류가 발생했습니다: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -196,7 +273,6 @@ class _PostFormScreenState extends State<PostFormScreen> {
                         controller: _customTagController,
                         label: '커스텀 태그',
                         hintText: '태그 이름을 직접 입력하세요',
-                        // maxLength 대신 inputFormatters 사용 (만약 CustomTextField에서 지원한다면)
                         validator: (value) {
                           if (_selectedTag == '기타' &&
                               (value == null || value.isEmpty)) {
@@ -226,100 +302,36 @@ class _PostFormScreenState extends State<PostFormScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // 내용 입력
-                    CustomTextField(
-                      controller: _contentController,
-                      label: '내용',
-                      hintText: '내용을 입력하세요',
-                      maxLines: 20, // 더 많은 줄 수 허용
-                      keyboardType: TextInputType.multiline, // 다중 줄 키보드 타입 설정
-                      textInputAction: TextInputAction.newline, // 엔터키를 줄바꿈으로 처리
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '내용을 입력해주세요.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-
-                    // 첨부 파일 섹션
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          '첨부 파일',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        TextButton.icon(
-                          icon: const Icon(Icons.attach_file),
-                          label: const Text('파일 추가'),
-                          onPressed: _pickFile,
-                        ),
-                      ],
+                    // 내용 입력 - 리치 텍스트 에디터 사용
+                    const Text(
+                      '내용',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.darkGray,
+                      ),
                     ),
                     const SizedBox(height: 8),
-
-                    // 기존 첨부 파일 목록
-                    if (_existingAttachments.isNotEmpty) ...[
-                      const Text(
-                        '기존 첨부 파일',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    Container(
+                      height: 400, // 에디터 높이 조정
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(height: 8),
-                      for (final fileUrl in _existingAttachments)
-                        ListTile(
-                          leading: const Icon(Icons.insert_drive_file),
-                          title: Text(
-                            fileUrl.split('/').last,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _removeExistingAttachment(fileUrl),
-                          ),
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // 새 첨부 파일 목록
-                    if (_newAttachments.isNotEmpty) ...[
-                      const Text(
-                        '새 첨부 파일',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: EnhancedRichTextEditor(
+                        initialContent: _quillContent,
+                        onContentChanged: (content) {
+                          _quillContent = content;
+                        },
+                        storagePath: _storagePath,
+                        height: 400,
                       ),
-                      const SizedBox(height: 8),
-                      for (int i = 0; i < _newAttachments.length; i++)
-                        ListTile(
-                          leading: const Icon(Icons.insert_drive_file),
-                          title: Text(
-                            _newAttachments[i].path.split('/').last,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _removeNewAttachment(i),
-                          ),
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
-                    ],
+                    ),
                   ],
                 ),
               ),
             ),
-
+            
             // 작성/수정 버튼
             Padding(
               padding: const EdgeInsets.all(16),
@@ -333,94 +345,5 @@ class _PostFormScreenState extends State<PostFormScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final user = userProvider.user;
-
-    if (user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('로그인 상태를 확인할 수 없습니다.')));
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final title = _titleController.text.trim();
-      final content = _contentController.text.trim();
-      final customTag =
-          _selectedTag == '기타' ? _customTagController.text.trim() : null;
-
-      if (widget.post == null) {
-        // 새 게시글 작성
-        final newPost = Post(
-          id: '',
-          title: title,
-          content: content,
-          authorId: user.id,
-          authorName: user.name,
-          authorProfileImage: user.profileImage,
-          createdAt: Timestamp.now(),
-          tag: _selectedTag, // 태그 추가
-          customTag: customTag, // 커스텀 태그 추가
-        );
-
-        await _postService.addPost(newPost, _newAttachments);
-
-        if (mounted) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('게시글이 작성되었습니다.')));
-        }
-      } else {
-        // 게시글 수정
-        final updatedPost = widget.post!.copyWith(
-          title: title,
-          content: content,
-          updatedAt: Timestamp.now(),
-          tag: _selectedTag, // 태그 추가
-          customTag: customTag, // 커스텀 태그 추가
-        );
-
-        await _postService.updatePost(
-          updatedPost,
-          _newAttachments,
-          _attachmentsToDelete,
-        );
-
-        if (mounted) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('게시글이 수정되었습니다.')));
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '게시글 ${widget.post == null ? '작성' : '수정'} 중 오류가 발생했습니다: $e',
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 }

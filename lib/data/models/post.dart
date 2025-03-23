@@ -1,9 +1,12 @@
+// lib/data/models/post.dart with RichContent support
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'package:flutter_application_1/data/models/rich_content.dart';
 
 class Post {
   final String id;
   final String title;
-  final String content;
+  final String content; // 기존 호환성을 위해 String 타입 유지
   final String authorId;
   final String authorName;
   final String? authorProfileImage;
@@ -34,6 +37,54 @@ class Post {
     this.likedBy = const [],
     this.dislikedBy = const [],
   });
+
+  // 팩토리 메서드 추가: RichContent를 사용하는 버전
+  factory Post.withRichContent({
+    required String id,
+    required String title,
+    required RichContent richContent,
+    required String authorId,
+    required String authorName,
+    String? authorProfileImage,
+    required Timestamp createdAt,
+    Timestamp? updatedAt,
+    int viewCount = 0,
+    int commentCount = 0,
+    List<String>? attachments,
+    String tag = '자유',
+    String? customTag,
+    List<String> likedBy = const [],
+    List<String> dislikedBy = const [],
+  }) {
+    return Post(
+      id: id,
+      title: title,
+      content: richContent.jsonContent,
+      authorId: authorId,
+      authorName: authorName,
+      authorProfileImage: authorProfileImage,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      viewCount: viewCount,
+      commentCount: commentCount,
+      attachments: attachments,
+      tag: tag,
+      customTag: customTag,
+      likedBy: likedBy,
+      dislikedBy: dislikedBy,
+    );
+  }
+
+  // RichContent 객체로 변환하는 getter
+  RichContent get richContent {
+    // content가 유효한 JSON인지 확인
+    if (RichContent.isValidJson(content)) {
+      return RichContent(jsonContent: content);
+    } else {
+      // 유효하지 않으면 일반 텍스트로 변환
+      return RichContent.fromPlainText(content);
+    }
+  }
 
   // 좋아요 및 싫어요 수 계산
   int get likeCount => likedBy.length;
