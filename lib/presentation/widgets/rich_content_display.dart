@@ -67,6 +67,7 @@ class RichContentDisplay extends StatelessWidget {
 }
 
 // 커스텀 이미지 임베드 빌더
+// 커스텀 이미지 임베드 빌더
 class _CustomImageEmbedBuilder extends EmbedBuilder {
   @override
   String get key => BlockEmbed.imageType;
@@ -81,32 +82,37 @@ class _CustomImageEmbedBuilder extends EmbedBuilder {
       child: Center(
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8.0),
-          child: Image.network(
-            imageUrl,
-            fit: BoxFit.contain,
-            width: double.infinity,
-            frameBuilder: (BuildContext context, Widget child, int? frame, bool wasSynchronouslyLoaded) {
-              if (wasSynchronouslyLoaded || frame != null) {
-                return child;
-              }
-              return const SizedBox(
-                height: 200,
-                width: double.infinity,
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            },
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                width: double.infinity,
-                height: 150,
-                color: Colors.grey[200],
-                child: const Center(
-                  child: Icon(Icons.error, color: Colors.red),
-                ),
-              );
-            },
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.8, // 화면 너비의 70%로 제한
+              maxHeight: 400, // 최대 높이를 300픽셀로 제한
+            ),
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.contain,
+              frameBuilder: (BuildContext context, Widget child, int? frame, bool wasSynchronouslyLoaded) {
+                if (wasSynchronouslyLoaded || frame != null) {
+                  return child;
+                }
+                return const SizedBox(
+                  height: 200,
+                  width: double.infinity,
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: double.infinity,
+                  height: 150,
+                  color: Colors.grey[200],
+                  child: const Center(
+                    child: Icon(Icons.error, color: Colors.red),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),

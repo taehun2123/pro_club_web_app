@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/presentation/widgets/notification_icon.dart';
+import 'package:flutter_application_1/presentation/widgets/rich_content_preview.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_1/core/theme/app_colors.dart';
 import 'package:flutter_application_1/data/services/auth_service.dart';
@@ -23,11 +24,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 class HomeScreen extends StatefulWidget {
   final int initialIndex;
-  
-  const HomeScreen({
-    Key? key, 
-    this.initialIndex = 0,
-  }) : super(key: key);
+
+  const HomeScreen({Key? key, this.initialIndex = 0}) : super(key: key);
 
   @override
   _HomeScreenState createState() => _HomeScreenState();
@@ -35,7 +33,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
-  
+
   late int _currentIndex;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -43,13 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final List<Widget> _screens;
 
   // 화면 제목 목록
-  final List<String> _screenTitles = [
-    '홈',
-    '일정',
-    '공지사항',
-    '게시판',
-    '갤러리',
-  ];
+  final List<String> _screenTitles = ['홈', '일정', '공지사항', '게시판', '갤러리'];
 
   // 화면 아이콘 목록
   final List<IconData> _screenIcons = [
@@ -65,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _loadUserData();
-    
+
     // 화면 초기화 - HomeTab은 패딩이 있는 버전과 없는 버전을 따로 설정
     _screens = [
       const HomeTabWithPadding(), // 패딩이 적용된 홈 탭
@@ -98,14 +90,15 @@ class _HomeScreenState extends State<HomeScreen> {
       key: _scaffoldKey,
       appBar: AppBar(
         // 웹 레이아웃에서만 드로워 토글 버튼 표시
-        leading: isWebLayout
-            ? IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () {
-                  _scaffoldKey.currentState?.openDrawer();
-                },
-              )
-            : null,
+        leading:
+            isWebLayout
+                ? IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () {
+                    _scaffoldKey.currentState?.openDrawer();
+                  },
+                )
+                : null,
         centerTitle: true, // 제목 중앙 정렬
         title: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0), // 로고 상하 여백 추가
@@ -131,154 +124,173 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       // 웹 레이아웃용 드로워 메뉴
-      drawer: isWebLayout
-          ? Drawer(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  DrawerHeader(
-                    decoration: const BoxDecoration(
-                      color: AppColors.background,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Image.asset(
-                          'assets/images/proxgoorm.png',
-                          width: 200,
-                          height: 110,
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                  // 메뉴 항목들
-                  for (int i = 0; i < _screenTitles.length; i++)
-                    ListTile(
-                      leading: Icon(
-                        _screenIcons[i],
-                        color: _currentIndex == i ? AppColors.primary : Colors.grey,
+      drawer:
+          isWebLayout
+              ? Drawer(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    DrawerHeader(
+                      decoration: const BoxDecoration(
+                        color: AppColors.background,
                       ),
-                      title: Text(
-                        _screenTitles[i],
-                        style: TextStyle(
-                          fontWeight: _currentIndex == i ? FontWeight.bold : FontWeight.normal,
-                          color: _currentIndex == i ? AppColors.primary : Colors.black,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Image.asset(
+                            'assets/images/proxgoorm.png',
+                            width: 200,
+                            height: 110,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                       ),
-                      selected: _currentIndex == i,
-                      selectedTileColor: AppColors.primary.withOpacity(0.1),
-                      onTap: () {
-                        setState(() {
-                          _currentIndex = i;
-                        });
-                        Navigator.pop(context); // 드로워 닫기
+                    ),
+                    // 메뉴 항목들
+                    for (int i = 0; i < _screenTitles.length; i++)
+                      ListTile(
+                        leading: Icon(
+                          _screenIcons[i],
+                          color:
+                              _currentIndex == i
+                                  ? AppColors.primary
+                                  : Colors.grey,
+                        ),
+                        title: Text(
+                          _screenTitles[i],
+                          style: TextStyle(
+                            fontWeight:
+                                _currentIndex == i
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                            color:
+                                _currentIndex == i
+                                    ? AppColors.primary
+                                    : Colors.black,
+                          ),
+                        ),
+                        selected: _currentIndex == i,
+                        selectedTileColor: AppColors.primary.withOpacity(0.1),
+                        onTap: () {
+                          setState(() {
+                            _currentIndex = i;
+                          });
+                          Navigator.pop(context); // 드로워 닫기
+                        },
+                      ),
+                    const Divider(),
+                    // 추가 메뉴 항목
+                    // 로그아웃 메뉴
+                    Consumer<UserProvider>(
+                      builder: (context, userProvider, child) {
+                        if (userProvider.isLoggedIn) {
+                          return ListTile(
+                            leading: const Icon(
+                              Icons.logout,
+                              color: Colors.red,
+                            ),
+                            title: const Text(
+                              '로그아웃',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                            onTap: () async {
+                              Navigator.pop(context);
+                              await _authService.signOut();
+                              if (!mounted) return;
+                              userProvider.clearUser();
+                              // 로그아웃 후 처리 로직
+                            },
+                          );
+                        }
+                        return const SizedBox.shrink();
                       },
                     ),
-                  const Divider(),
-                  // 추가 메뉴 항목
-                  // 로그아웃 메뉴
-                  Consumer<UserProvider>(
-                    builder: (context, userProvider, child) {
-                      if (userProvider.isLoggedIn) {
-                        return ListTile(
-                          leading: const Icon(Icons.logout, color: Colors.red),
-                          title: const Text('로그아웃', style: TextStyle(color: Colors.red)),
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await _authService.signOut();
-                            if (!mounted) return;
-                            userProvider.clearUser();
-                            // 로그아웃 후 처리 로직
-                          },
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                ],
-              ),
-            )
-          : null,
+                  ],
+                ),
+              )
+              : null,
       body: SafeArea(
         bottom: true, // 하단 SafeArea 활성화
         // 홈 화면(첫 번째 탭)에만 추가 패딩 없음, 나머지 스크린은 그대로 표시
         child: Column(
           children: [
             // 메인 콘텐츠 영역
-            Expanded(
-              child: _screens[_currentIndex],
-            ),
+            Expanded(child: _screens[_currentIndex]),
             // 하단 여백 - 하단 네비게이션 바의 높이만큼 추가
             SizedBox(height: isWebLayout ? 0 : 16), // 모바일 레이아웃에서만 추가 여백 설정
           ],
         ),
       ),
       // 모바일 레이아웃에서만 하단 네비게이션 바 표시
-      bottomNavigationBar: isWebLayout
-          ? null
-          : Container(
-              margin: const EdgeInsets.only(
-                left: 12,
-                right: 12,
-                bottom: 16, // 하단 여백 추가
-              ),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20), // 둥근 모서리 추가
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, -3),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20), // 내부 콘텐츠도 둥근 모서리 적용
-                child: BottomNavigationBar(
-                  currentIndex: _currentIndex,
-                  onTap: (index) {
-                    setState(() {
-                      _currentIndex = index;
-                    });
-                  },
-                  type: BottomNavigationBarType.fixed,
-                  selectedItemColor: AppColors.primary,
-                  unselectedItemColor: AppColors.mediumGray,
-                  backgroundColor: Colors.white,
-                  elevation: 15,
-                  selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal),
-                  items: [
-                    BottomNavigationBarItem(
-                      icon: const Icon(Icons.home_outlined),
-                      activeIcon: const Icon(Icons.home),
-                      label: _screenTitles[0],
-                    ),
-                    BottomNavigationBarItem(
-                      icon: const Icon(Icons.calendar_today_outlined),
-                      activeIcon: const Icon(Icons.calendar_today),
-                      label: _screenTitles[1],
-                    ),
-                    BottomNavigationBarItem(
-                      icon: const Icon(Icons.announcement_outlined),
-                      activeIcon: const Icon(Icons.announcement),
-                      label: _screenTitles[2],
-                    ),
-                    BottomNavigationBarItem(
-                      icon: const Icon(Icons.forum_outlined),
-                      activeIcon: const Icon(Icons.forum),
-                      label: _screenTitles[3],
-                    ),
-                    BottomNavigationBarItem(
-                      icon: const Icon(Icons.photo_library_outlined),
-                      activeIcon: const Icon(Icons.photo_library),
-                      label: _screenTitles[4],
+      bottomNavigationBar:
+          isWebLayout
+              ? null
+              : Container(
+                margin: const EdgeInsets.only(
+                  left: 12,
+                  right: 12,
+                  bottom: 16, // 하단 여백 추가
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20), // 둥근 모서리 추가
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, -3),
                     ),
                   ],
                 ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20), // 내부 콘텐츠도 둥근 모서리 적용
+                  child: BottomNavigationBar(
+                    currentIndex: _currentIndex,
+                    onTap: (index) {
+                      setState(() {
+                        _currentIndex = index;
+                      });
+                    },
+                    type: BottomNavigationBarType.fixed,
+                    selectedItemColor: AppColors.primary,
+                    unselectedItemColor: AppColors.mediumGray,
+                    backgroundColor: Colors.white,
+                    elevation: 15,
+                    selectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.normal,
+                    ),
+                    items: [
+                      BottomNavigationBarItem(
+                        icon: const Icon(Icons.home_outlined),
+                        activeIcon: const Icon(Icons.home),
+                        label: _screenTitles[0],
+                      ),
+                      BottomNavigationBarItem(
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        activeIcon: const Icon(Icons.calendar_today),
+                        label: _screenTitles[1],
+                      ),
+                      BottomNavigationBarItem(
+                        icon: const Icon(Icons.announcement_outlined),
+                        activeIcon: const Icon(Icons.announcement),
+                        label: _screenTitles[2],
+                      ),
+                      BottomNavigationBarItem(
+                        icon: const Icon(Icons.forum_outlined),
+                        activeIcon: const Icon(Icons.forum),
+                        label: _screenTitles[3],
+                      ),
+                      BottomNavigationBarItem(
+                        icon: const Icon(Icons.photo_library_outlined),
+                        activeIcon: const Icon(Icons.photo_library),
+                        label: _screenTitles[4],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
     );
   }
 }
@@ -290,7 +302,7 @@ class HomeTabWithPadding extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isWebLayout = kIsWeb && MediaQuery.of(context).size.width > 768;
-    
+
     // 패딩을 적용한 HomeTab - 웹과 모바일에 각각 다른 패딩 적용
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -443,14 +455,21 @@ class _HomeTabState extends State<HomeTab> {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.local_fire_department, color: Colors.red, size: 16),
+                        Icon(
+                          Icons.local_fire_department,
+                          color: Colors.red,
+                          size: 16,
+                        ),
                         SizedBox(width: 2),
                         Text(
                           'HOT',
@@ -495,21 +514,29 @@ class _HomeTabState extends State<HomeTab> {
                     itemCount: posts.length,
                     itemBuilder: (context, index) {
                       final post = posts[index];
-                      final createdDate = DateFormat('yyyy.MM.dd').format(post.createdAt.toDate());
-                      
+                      final createdDate = DateFormat(
+                        'yyyy.MM.dd',
+                      ).format(post.createdAt.toDate());
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         elevation: 1,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12), // 카드 모서리 더 둥글게
+                          borderRadius: BorderRadius.circular(
+                            12,
+                          ), // 카드 모서리 더 둥글게
                         ),
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(12), // 잉크 효과도 모서리 맞춤
+                          borderRadius: BorderRadius.circular(
+                            12,
+                          ), // 잉크 효과도 모서리 맞춤
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => PostDetailScreen(postId: post.id),
+                                builder:
+                                    (context) =>
+                                        PostDetailScreen(postId: post.id),
                               ),
                             ).then((_) => setState(() {}));
                           },
@@ -522,9 +549,14 @@ class _HomeTabState extends State<HomeTab> {
                                   children: [
                                     // 태그 표시
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: _getTagColor(post.tag).withOpacity(0.2),
+                                        color: _getTagColor(
+                                          post.tag,
+                                        ).withOpacity(0.2),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
@@ -537,13 +569,18 @@ class _HomeTabState extends State<HomeTab> {
                                       ),
                                     ),
                                     // 좋아요 카운트 배지
-                                    if (post.likeCount > 0) 
+                                    if (post.likeCount > 0)
                                       Container(
                                         margin: const EdgeInsets.only(left: 8),
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: Colors.red.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(4),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -569,10 +606,17 @@ class _HomeTabState extends State<HomeTab> {
                                     if (post.commentCount > 0)
                                       Container(
                                         margin: const EdgeInsets.only(left: 8),
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: AppColors.primary.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(4),
+                                          color: AppColors.primary.withOpacity(
+                                            0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                         ),
                                         child: Text(
                                           post.commentCount.toString(),
@@ -596,15 +640,14 @@ class _HomeTabState extends State<HomeTab> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
-                                  post.content,
+                                // 게시글 내용 미리보기
+                                RichContentPreview(
+                                  jsonContent: post.content,
+                                  maxLines: 1,
                                   style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey[700],
-                                    height: 1.3,
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
                                   ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
@@ -667,7 +710,8 @@ class _HomeTabState extends State<HomeTab> {
                   onPressed: () {
                     if (isWebLayout) {
                       // 웹 레이아웃에서는 부모 HomeScreen의 _currentIndex를 변경
-                      final parentState = context.findAncestorStateOfType<_HomeScreenState>();
+                      final parentState =
+                          context.findAncestorStateOfType<_HomeScreenState>();
                       if (parentState != null) {
                         parentState.setState(() {
                           parentState._currentIndex = 3; // 게시판 인덱스
@@ -679,7 +723,8 @@ class _HomeTabState extends State<HomeTab> {
                       Future.delayed(Duration.zero, () {
                         Navigator.of(parentContext).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(initialIndex: 3),
+                            builder:
+                                (context) => const HomeScreen(initialIndex: 3),
                           ),
                         );
                       });
@@ -735,7 +780,8 @@ class _HomeTabState extends State<HomeTab> {
                   onPressed: () {
                     if (isWebLayout) {
                       // 웹 레이아웃에서는 부모 HomeScreen의 _currentIndex를 변경
-                      final parentState = context.findAncestorStateOfType<_HomeScreenState>();
+                      final parentState =
+                          context.findAncestorStateOfType<_HomeScreenState>();
                       if (parentState != null) {
                         parentState.setState(() {
                           parentState._currentIndex = 1; // 캘린더 인덱스
@@ -747,7 +793,8 @@ class _HomeTabState extends State<HomeTab> {
                       Future.delayed(Duration.zero, () {
                         Navigator.of(parentContext).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(initialIndex: 1),
+                            builder:
+                                (context) => const HomeScreen(initialIndex: 1),
                           ),
                         );
                       });
@@ -799,7 +846,8 @@ class _HomeTabState extends State<HomeTab> {
                   onPressed: () {
                     if (isWebLayout) {
                       // 웹 레이아웃에서는 부모 HomeScreen의 _currentIndex를 변경
-                      final parentState = context.findAncestorStateOfType<_HomeScreenState>();
+                      final parentState =
+                          context.findAncestorStateOfType<_HomeScreenState>();
                       if (parentState != null) {
                         parentState.setState(() {
                           parentState._currentIndex = 4; // 갤러리 인덱스
@@ -811,7 +859,8 @@ class _HomeTabState extends State<HomeTab> {
                       Future.delayed(Duration.zero, () {
                         Navigator.of(parentContext).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(initialIndex: 4),
+                            builder:
+                                (context) => const HomeScreen(initialIndex: 4),
                           ),
                         );
                       });
