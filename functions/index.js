@@ -103,7 +103,7 @@ exports.sendMentionNotification = onDocumentCreated("notifications/{notification
     };
 
     // FCM 메시지 전송
-    const response = await getMessaging().sendMulticast(message);
+    const response = await getMessaging().sendEachForMulticast(message);
     console.log(`${fcmTokens.length}개 기기 중 ${response.successCount}개 전송 성공`);
 
     // 실패한 토큰 제거

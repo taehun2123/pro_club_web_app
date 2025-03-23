@@ -4,7 +4,8 @@
 /web/firebase-messaging-sw.js
 /web/index.html
 /web/env-config.js
-.env
+*env
+/*node_modules
 # 플랫폼 별 설정파일
 android/key.properties
 ios/Flutter/Config.xcconfig

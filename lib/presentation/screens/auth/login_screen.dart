@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // 제목
                   const Center(
                     child: Text(
-                      'PRO 동아리',
+                      'PRO 동아리 X Goorm',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
