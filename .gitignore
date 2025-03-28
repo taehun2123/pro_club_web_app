@@ -2,6 +2,7 @@
 /lib/firebase_options.dart
 /firebase.json
 /web/index.html
+/web/firebase-messaging-sw.js
 /web/env-config.js
 *env
 /*node_modules
