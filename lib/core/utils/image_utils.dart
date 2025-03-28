@@ -10,60 +10,44 @@ import 'package:http/http.dart' as http;
 
 class ImageUtils {
   // 이미지를 선택하고 압축하는 메서드
-  static Future<Map<String, dynamic>?> pickAndOptimizeImage({
-    required ImageSource source,
-    int maxWidth = 1920,
-    int maxHeight = 1080,
-    int quality = 85,
-  }) async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? pickedFile = await picker.pickImage(
-        source: source,
-        maxWidth: maxWidth.toDouble(),
-        maxHeight: maxHeight.toDouble(),
-      );
-      
-      if (pickedFile == null) {
-        return null;
-      }
-      
-      final String originalFilename = path.basename(pickedFile.path);
-      final String extension = path.extension(originalFilename).toLowerCase();
-      final uuid = const Uuid().v4();
-      final String filename = '$uuid$extension';
-      
-      Uint8List compressedData;
-      
-      if (kIsWeb) {
-        // 웹에서는 XFile에서 바로 바이트를 읽고 압축
-        final bytes = await pickedFile.readAsBytes();
-        compressedData = await FlutterImageCompress.compressWithList(
-          bytes,
-          quality: quality,
-          minWidth: 100, // 최소 너비 (썸네일 품질 보장)
-          minHeight: 100, // 최소 높이
-        );
-      } else {
-        // 모바일에서는 파일 경로 사용
-        compressedData = await FlutterImageCompress.compressWithFile(
-          pickedFile.path,
-          quality: quality,
-          minWidth: 100,
-          minHeight: 100,
-        ) ?? Uint8List(0);
-      }
-      
-      return {
-        'filename': filename,
-        'data': compressedData,
-        'mimeType': 'image/jpeg',
-      };
-    } catch (e) {
-      print('이미지 처리 오류: $e');
+static Future<Map<String, dynamic>?> pickAndOptimizeImage({
+  required ImageSource source,
+  int maxWidth = 1920,
+  int maxHeight = 1080,
+  int quality = 85,
+}) async {
+  try {
+    final ImagePicker picker = ImagePicker();
+    final XFile? pickedFile = await picker.pickImage(
+      source: source,
+      maxWidth: maxWidth.toDouble(),
+      maxHeight: maxHeight.toDouble(),
+      imageQuality: quality, // ImagePicker의 기본 압축 사용
+    );
+    
+    if (pickedFile == null) {
       return null;
     }
+    
+    final String originalFilename = path.basename(pickedFile.path);
+    final String extension = path.extension(originalFilename).toLowerCase();
+    final uuid = const Uuid().v4();
+    final String filename = '$uuid$extension';
+    
+    // 압축 로직 우회하고 직접 파일 데이터 읽기
+    final Uint8List fileData = await pickedFile.readAsBytes();
+    
+    return {
+      'filename': filename,
+      'data': fileData,
+      'mimeType': extension == '.png' ? 'image/png' : 'image/jpeg',
+    };
+  } catch (e, stack) {
+    print('이미지 처리 오류: $e');
+    print('스택 트레이스: $stack');
+    return null;
   }
+}
   
   // 썸네일 생성
   static Future<Uint8List?> generateThumbnail(Uint8List imageData, {
